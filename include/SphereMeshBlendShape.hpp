@@ -2,15 +2,35 @@
 
 #include <glm/glm.hpp>
 
+#include <vector>
+
+struct Sphere {
+	glm::vec3 c;
+	float r;
+};
+
+struct Capsuloid {
+	int a, b;
+};
+
+struct Prysmoid {
+	int a, b, c;
+};
+
 class SphereMesh {
 public:
 	bool loadFromFile(const char* filename);
-	glm::vec3 pushOutside( glm::vec3 p, glm::vec3 &normal);
-	glm::vec3 pushOutside( glm::vec3 p, glm::vec3 &normal, int &lastCollided); // if lastCollided == -1, test all
+	glm::vec3 pushOutside(glm::vec3 p, glm::vec3 &normal);
+	glm::vec3 pushOutside(glm::vec3 p, glm::vec3 &normal, int &lastCollided); // if lastCollided == -1, test all
 
 private:
-	/// data...
+	Sphere extractSphereFromString(const std::string &s);
+	Capsuloid extractCapsuloidFromString(const std::string &s);
+	Prysmoid extractPrysmoidFromString(const std::string &s);
 	
+	std::vector<Sphere> spheres;
+	std::vector<Capsuloid> capsuloids;
+	std::vector<Prysmoid> prysmoids;
 };
 
 class SphereMeshBlendShape{
