@@ -1,0 +1,69 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Release-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "SphereMeshBlendShape",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "SphereMeshBlendShape::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-SphereMeshBlendShape-Release-2ed86c26c8bceecc19a6.json",
+					"name" : "SphereMeshBlendShape",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "SphereMeshBlendShapeTest::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-SphereMeshBlendShapeTest-Release-9a2b4934beeffe5bca7c.json",
+					"name" : "SphereMeshBlendShapeTest",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshBlendShape/cmake-build-release",
+		"source" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshBlendShape"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 5
+	}
+}
