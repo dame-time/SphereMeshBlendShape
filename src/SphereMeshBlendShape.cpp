@@ -249,13 +249,11 @@ glm::vec4 BumperPrysmoid::getPlane (const Sphere &a, const Sphere &b, const Sphe
 	return {n, d};
 }
 
-void removeElement(std::vector<int>& vec, int element) {
-	vec.erase(std::remove(vec.begin(), vec.end(), element), vec.end());
-}
-
 void BumperGraph::constructFrom (const SphereMesh &sm)
 {
 	sphere = sm.spheres;
+	
+	std::vector<std::vector<int>> capsuloidAdj (sphere.size(), std::vector<int>(sphere.size(), -1));
 	
 	for (int i = 0; i < sphere.size(); i++)
 	{
@@ -264,7 +262,7 @@ void BumperGraph::constructFrom (const SphereMesh &sm)
 		
 		BumperNode node {};
 		node.shapeType = BumperNode::SPHERE;
-		node.bumper.sphere = bs;
+		node.bumper = bs;
 		
 		bumperNode.push_back(node);
 	}
@@ -277,11 +275,23 @@ void BumperGraph::constructFrom (const SphereMesh &sm)
 				sphere[c.indices[0]],
 				sphere[c.indices[1]]);
 		
+		if (capsuloidAdj[c.indices[0]][c.indices[1]] != -1 || capsuloidAdj[c.indices[1]][c.indices[0]] != -1)
+			continue;
+		
+		bc.neibExtreme[0] = c.indices[0];
+		bc.neibExtreme[1] = c.indices[1];
+		
+		std::get<BumperSphere>(bumperNode[c.indices[0]].bumper).neibCapsules.push_back(bumperNode.size());
+		std::get<BumperSphere>(bumperNode[c.indices[1]].bumper).neibCapsules.push_back(bumperNode.size());
+		
 		BumperNode node {};
 		node.shapeType = BumperNode::CAPSULOID;
-		node.bumper.capsuloid = bc;
+		node.bumper = bc;
 		
 		bumperNode.push_back(node);
+		
+		capsuloidAdj[c.indices[0]][c.indices[1]] = bumperNode.size() - 1;
+		capsuloidAdj[c.indices[1]][c.indices[0]] = bumperNode.size() - 1;
 	}
 	
 	for (const Prysmoid &p : sm.prysmoids)
@@ -326,87 +336,102 @@ void BumperGraph::constructFrom (const SphereMesh &sm)
 		
 		BumperNode nodeUpper {};
 		nodeUpper.shapeType = BumperNode::PRYSMOID;
-		nodeUpper.bumper.prysmoid = bpUpper;
+		bpUpper.niebOpp = bumperNode.size() + 1;
+		nodeUpper.bumper = bpUpper;
 		
 		BumperNode nodeLower {};
 		nodeLower.shapeType = BumperNode::PRYSMOID;
-		nodeLower.bumper.prysmoid = bpLower;
+		bpLower.niebOpp = bumperNode.size();
+		nodeLower.bumper = bpLower;
 		
 		BumperNode edge0 {};
 		edge0.shapeType = BumperNode::CAPSULOID;
-		edge0.bumper.capsuloid = bc0;
+		bc0.neibExtreme[0] = p.indices[0];
+		bc0.neibExtreme[1] = p.indices[1];
+		edge0.bumper = bc0;
 		
 		BumperNode edge1 {};
 		edge1.shapeType = BumperNode::CAPSULOID;
-		edge1.bumper.capsuloid = bc1;
+		bc1.neibExtreme[0] = p.indices[0];
+		bc1.neibExtreme[1] = p.indices[2];
+		edge1.bumper = bc1;
 		
 		BumperNode edge2 {};
 		edge2.shapeType = BumperNode::CAPSULOID;
-		edge2.bumper.capsuloid = bc2;
+		bc2.neibExtreme[0] = p.indices[1];
+		bc2.neibExtreme[1] = p.indices[2];
+		edge2.bumper = bc2;
 		
 		bumperNode.push_back(nodeUpper);
 		bumperNode.push_back(nodeLower);
-		bumperNode.push_back(edge0);
-		bumperNode.push_back(edge1);
-		bumperNode.push_back(edge2);
-	}
-	
-	for (int i = 0; i < bumperNode.size(); i++)
-	{
-		BumperNode &node = bumperNode[i];
 		
-		for (int j = 0; j < bumperNode.size(); j++)
+		int upperIndex = bumperNode.size() - 2;
+		int lowerIndex = bumperNode.size() - 1;
+		
+		if (capsuloidAdj[p.indices[0]][p.indices[1]] == -1 || capsuloidAdj[p.indices[1]][p.indices[0]] == -1)
 		{
-			if (i == j)
-				continue;
+			capsuloidAdj[p.indices[0]][p.indices[1]] = bumperNode.size();
+			capsuloidAdj[p.indices[1]][p.indices[0]] = bumperNode.size();
 			
-			BumperNode &neighbour = bumperNode[j];
+			std::get<BumperSphere>(bumperNode[p.indices[0]].bumper).neibCapsules.push_back(bumperNode.size());
+			std::get<BumperSphere>(bumperNode[p.indices[1]].bumper).neibCapsules.push_back(bumperNode.size());
 			
-			bool check0 = node.shapeType == BumperNode::CAPSULOID && neighbour.shapeType == BumperNode::CAPSULOID
-			              && doesShareEdge(node.bumper.capsuloid, neighbour.bumper.capsuloid);
-			bool check1 = node.shapeType == BumperNode::CAPSULOID && neighbour.shapeType == BumperNode::PRYSMOID
-			              && doesShareEdge(node.bumper.capsuloid, neighbour.bumper.prysmoid);
-			bool check2 = node.shapeType == BumperNode::PRYSMOID && neighbour.shapeType == BumperNode::CAPSULOID
-			              && doesShareEdge(neighbour.bumper.capsuloid, node.bumper.prysmoid);
-			bool check3 = node.shapeType == BumperNode::PRYSMOID && neighbour.shapeType == BumperNode::CAPSULOID
-			              && doesShareEdge(neighbour.bumper.prysmoid, node.bumper.prysmoid);
-			
-			if (check0 || check1 || check2 || check3)
-				node.neighbours.push_back(j);
+			bumperNode.push_back(edge0);
 		}
 		
-		// Removing duplicates and cycles
-		std::sort(node.neighbours.begin(), node.neighbours.end());
-		auto last = std::unique(node.neighbours.begin(), node.neighbours.end());
-		node.neighbours.erase(last, node.neighbours.end());
+		int idx = capsuloidAdj[p.indices[0]][p.indices[1]];
 		
-		removeElement(node.neighbours,i);
+		std::get<BumperPrysmoid>(bumperNode[upperIndex].bumper).neibSide[0] = idx;
+		std::get<BumperPrysmoid>(bumperNode[lowerIndex].bumper).neibSide[0] = idx;
+		
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(upperIndex);
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(lowerIndex);
+		
+		if (capsuloidAdj[p.indices[0]][p.indices[2]] == -1 || capsuloidAdj[p.indices[2]][p.indices[0]] == -1)
+		{
+			capsuloidAdj[p.indices[0]][p.indices[2]] = bumperNode.size();
+			capsuloidAdj[p.indices[2]][p.indices[0]] = bumperNode.size();
+			
+			std::get<BumperSphere>(bumperNode[p.indices[0]].bumper).neibCapsules.push_back(bumperNode.size());
+			std::get<BumperSphere>(bumperNode[p.indices[2]].bumper).neibCapsules.push_back(bumperNode.size());
+			
+			bumperNode.push_back(edge1);
+		}
+		
+		idx = capsuloidAdj[p.indices[0]][p.indices[2]];
+		
+		std::get<BumperPrysmoid>(bumperNode[upperIndex].bumper).neibSide[1] = idx;
+		std::get<BumperPrysmoid>(bumperNode[lowerIndex].bumper).neibSide[1] = idx;
+		
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(upperIndex);
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(lowerIndex);
+		
+		if (capsuloidAdj[p.indices[1]][p.indices[2]] == -1 || capsuloidAdj[p.indices[2]][p.indices[1]] == -1)
+		{
+			capsuloidAdj[p.indices[1]][p.indices[2]] = bumperNode.size();
+			capsuloidAdj[p.indices[2]][p.indices[1]] = bumperNode.size();
+			
+			std::get<BumperSphere>(bumperNode[p.indices[1]].bumper).neibCapsules.push_back(bumperNode.size());
+			std::get<BumperSphere>(bumperNode[p.indices[2]].bumper).neibCapsules.push_back(bumperNode.size());
+			
+			bumperNode.push_back(edge2);
+		}
+		
+		idx = capsuloidAdj[p.indices[1]][p.indices[2]];
+		
+		std::get<BumperPrysmoid>(bumperNode[upperIndex].bumper).neibSide[2] = idx;
+		std::get<BumperPrysmoid>(bumperNode[lowerIndex].bumper).neibSide[2] = idx;
+		
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(upperIndex);
+		std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.push_back(lowerIndex);
 	}
-}
-
-bool BumperGraph::doesShareEdge (BumperCapsuloid &a, BumperCapsuloid &b)
-{
-	return (a.sphereIndex[0] == b.sphereIndex[0] || a.sphereIndex[0] == b.sphereIndex[1])
-	       || (a.sphereIndex[1] == b.sphereIndex[0] || a.sphereIndex[1] == b.sphereIndex[1]);
-}
-
-bool BumperGraph::doesShareEdge (BumperPrysmoid &a, BumperPrysmoid &b)
-{
-	return (a.sphereIndex[0] == b.sphereIndex[0] || a.sphereIndex[0] == b.sphereIndex[1] || a.sphereIndex[0] == b.sphereIndex[2])
-	       || (a.sphereIndex[1] == b.sphereIndex[0] || a.sphereIndex[1] == b.sphereIndex[1] || a.sphereIndex[1] == b.sphereIndex[2])
-	       || (a.sphereIndex[2] == b.sphereIndex[0] || a.sphereIndex[2] == b.sphereIndex[1] || a.sphereIndex[2] == b.sphereIndex[2]);
-}
-
-bool BumperGraph::doesShareEdge (BumperCapsuloid &a, BumperPrysmoid &b)
-{
-	return (a.sphereIndex[0] == b.sphereIndex[0] || a.sphereIndex[0] == b.sphereIndex[1] || a.sphereIndex[0] == b.sphereIndex[2])
-	       || (a.sphereIndex[1] == b.sphereIndex[0] || a.sphereIndex[1] == b.sphereIndex[1] || a.sphereIndex[1] == b.sphereIndex[2]);
 }
 
 bool BumperGraph::pushOutsideSphere(glm::vec3& p, glm::vec3& n, int& bumperIndex)
 {
 	BumperNode& node = bumperNode[bumperIndex];
-	Sphere& s = sphere[node.bumper.sphere.sphereIndex];
+	BumperSphere bs = std::get<BumperSphere>(node.bumper);
+	Sphere& s = sphere[bs.sphereIndex];
 	
 	bool isInside = glm::length(p - s.c) < s.r;
 	
@@ -422,7 +447,7 @@ bool BumperGraph::pushOutsideSphere(glm::vec3& p, glm::vec3& n, int& bumperIndex
 bool BumperGraph::pushOutsideCapsuloid (glm::vec3 &p, glm::vec3 &n, int &bumperIndex)
 {
 	BumperNode& node = bumperNode[bumperIndex];
-	BumperCapsuloid& bc = node.bumper.capsuloid;
+	BumperCapsuloid bc = std::get<BumperCapsuloid>(node.bumper);
 	
 	Sphere& a = sphere[bc.sphereIndex[0]];
 	Sphere& b = sphere[bc.sphereIndex[1]];
@@ -433,8 +458,27 @@ bool BumperGraph::pushOutsideCapsuloid (glm::vec3 &p, glm::vec3 &n, int &bumperI
 	
 	float pq = glm::length(p - q);
 	
-	float kd = node.bumper.capsuloid.k * pq;
+	float kd = bc.k * pq;
 	float t_prime = t + kd;
+	
+	if (t_prime < 0)
+	{
+		int index = bc.sphereIndex[0];
+		if (!pushOutsideSphere(p, n, index))
+			return false;
+		
+		bumperIndex = index;
+		return true;
+	}
+	else if (t_prime > 1)
+	{
+		int index = bc.sphereIndex[1];
+		if(!pushOutsideSphere(p, n, index))
+			return false;
+		
+		bumperIndex = index;
+		return true;
+	}
 	
 	t_prime = glm::clamp(t_prime, 0.0f, 1.0f);
 	
@@ -455,17 +499,13 @@ bool BumperGraph::pushOutsideCapsuloid (glm::vec3 &p, glm::vec3 &n, int &bumperI
 bool BumperGraph::pushOutsidePrysmoid (glm::vec3 &p, glm::vec3 &n, int &bumperIndex)
 {
 	BumperNode& node = bumperNode[bumperIndex];
-	BumperPrysmoid& bp = node.bumper.prysmoid;
+	BumperPrysmoid bp = std::get<BumperPrysmoid>(node.bumper);
 	
 	Sphere& a = sphere[bp.sphereIndex[0]];
 	Sphere& b = sphere[bp.sphereIndex[1]];
 	Sphere& c = sphere[bp.sphereIndex[2]];
 	
 	glm::vec3 basePlaneNormal = glm::vec3(bp.basePlane.x, bp.basePlane.y, bp.basePlane.z);
-	bool isOver = glm::dot(basePlaneNormal, p - a.c) > 0;
-	
-	if (!isOver)
-		return false;
 	
 	glm::vec3 barycentricCoordWithDist = bp.invM * (p - a.c);
 	float thirdCoord = 1.0f - barycentricCoordWithDist.x - barycentricCoordWithDist.y;
@@ -473,12 +513,21 @@ bool BumperGraph::pushOutsidePrysmoid (glm::vec3 &p, glm::vec3 &n, int &bumperIn
 	glm::vec4 coord = glm::vec4(barycentricCoordWithDist.x, barycentricCoordWithDist.y, thirdCoord,
 	                            barycentricCoordWithDist.z);
 	
-	bool isInside = coord.x >= 0
-	                && coord.y >= 0
-	                && coord.z >= 0;
-	
-	if (!isInside)
-		return false;
+	if (coord.x < 0)
+	{
+		bumperIndex = bp.neibSide[1];
+		return pushOutsideCapsuloid(p, n, bumperIndex);
+	}
+	else if (coord.y < 0)
+	{
+		bumperIndex = bp.neibSide[0];
+		return pushOutsideCapsuloid(p, n, bumperIndex);
+	}
+	else if (coord.z < 0)
+	{
+		bumperIndex = bp.neibSide[2];
+		return pushOutsideCapsuloid(p, n, bumperIndex);
+	}
 	
 	float sphereRadius = coord.x * b.r + coord.y * c.r + coord.z * a.r;
 	
@@ -493,37 +542,66 @@ bool BumperGraph::pushOutsidePrysmoid (glm::vec3 &p, glm::vec3 &n, int &bumperIn
 	return true;
 }
 
+bool BumperGraph::pushOutsidePrysmoidPair (glm::vec3 &p, glm::vec3 &n, int &bumperIndex)
+{
+	BumperNode& node = bumperNode[bumperIndex];
+	BumperPrysmoid bp = std::get<BumperPrysmoid>(node.bumper);
+	
+	Sphere& a = sphere[bp.sphereIndex[0]];
+	Sphere& b = sphere[bp.sphereIndex[1]];
+	Sphere& c = sphere[bp.sphereIndex[2]];
+	
+	glm::vec3 basePlaneNormal = glm::vec3(bp.basePlane.x, bp.basePlane.y, bp.basePlane.z);
+	bool sideUp = glm::dot(basePlaneNormal, p - a.c) > 0;
+	
+	if (!sideUp)
+	{
+		bumperIndex = bp.niebOpp;
+		return pushOutsidePrysmoid(p, n, bumperIndex);
+	}
+	
+	return pushOutsidePrysmoid(p, n, bumperIndex);
+}
+
 bool BumperGraph::pushOutsideBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)
 {
 	bool hasCollided = false;
 	
 	for (int i = 0; i < bumperNode.size(); i++)
 	{
-		BumperNode& node = bumperNode[i];
+		int index = i;
 		
-		if (node.shapeType == BumperNode::SPHERE)
+		if (bumperNode[i].shapeType == BumperNode::SPHERE)
 		{
-			if (pushOutsideSphere(p, n, i))
+			if (std::get<BumperSphere>(bumperNode[i].bumper).neibCapsules.empty())
+				continue;
+			
+			if (pushOutsideSphere(p, n, index))
 			{
-				bumperIndex = i;
+				bumperIndex = index;
 				hasCollided = true;
 			}
 		}
-		else if (node.shapeType == BumperNode::CAPSULOID)
+		else if (bumperNode[i].shapeType == BumperNode::CAPSULOID)
 		{
-			if (pushOutsideCapsuloid(p, n, i))
+//			if (std::get<BumperCapsuloid>(bumperNode[i].bumper).neibTriangles.empty())
+//				continue;
+			
+			if (pushOutsideCapsuloid(p, n, index))
 			{
-				bumperIndex = i;
+				bumperIndex = index;
 				hasCollided = true;
 			}
 		}
-		else if (node.shapeType == BumperNode::PRYSMOID)
+		else if (bumperNode[i].shapeType == BumperNode::PRYSMOID)
 		{
-			if (pushOutsidePrysmoid(p, n, i))
+			if (pushOutsidePrysmoidPair(p, n, index))
 			{
-				bumperIndex = i;
+				bumperIndex = index;
 				hasCollided = true;
 			}
+			
+			i++; // Skipping the other plane since I already check that
 		}
 	}
 	
@@ -535,41 +613,47 @@ bool BumperGraph::pushOutside (glm::vec3 &p, glm::vec3 &n, int &bumperIndex)
 	if (bumperIndex == -1)
 		return pushOutsideBruteForce(p, n, bumperIndex);
 	
-	BumperNode& node = bumperNode[bumperIndex];
-	std::vector<int> neighbours = node.neighbours;
-	neighbours.insert(neighbours.begin(), bumperIndex); // testing also against the old
-	
-	bool hasCollided = false;
-	
-	for (int& i : neighbours)
+	if (bumperNode[bumperIndex].shapeType == BumperNode::SPHERE)
 	{
-		BumperNode& neighbour = bumperNode[i];
+		int idx = bumperIndex;
 		
-		if (neighbour.shapeType == BumperNode::SPHERE)
+		if (std::get<BumperSphere>(bumperNode[idx].bumper).neibCapsules.empty())
+			return false;
+		
+		if (!pushOutsideSphere(p, n, bumperIndex))
+			return false;
+		
+		for (int i : std::get<BumperSphere>(bumperNode[idx].bumper).neibCapsules)
 		{
-			if (pushOutsideSphere(p, n, i))
+			int index = i;
+			if (pushOutsideCapsuloid(p, n, index))
 			{
-				bumperIndex = i;
-				hasCollided = true;
-			}
-		}
-		else if (neighbour.shapeType == BumperNode::CAPSULOID)
-		{
-			if (pushOutsideCapsuloid(p, n, i))
-			{
-				bumperIndex = i;
-				hasCollided = true;
-			}
-		}
-		else if (neighbour.shapeType == BumperNode::PRYSMOID)
-		{
-			if (pushOutsidePrysmoid(p, n, i))
-			{
-				bumperIndex = i;
-				hasCollided = true;
+				bumperIndex = index;
+				return true;
 			}
 		}
 	}
+	else if (bumperNode[bumperIndex].shapeType == BumperNode::CAPSULOID)
+	{
+		int idx = bumperIndex;
+		if (!pushOutsideCapsuloid(p, n, bumperIndex))
+			return false;
+		
+		for (int i = 0; i < std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles.size(); i += 2)
+		{
+			int index = std::get<BumperCapsuloid>(bumperNode[idx].bumper).neibTriangles[i];
+			if(pushOutsidePrysmoidPair(p, n, index))
+			{
+				bumperIndex = index;
+				return true;
+			}
+		}
+	}
+	else if (bumperNode[bumperIndex].shapeType == BumperNode::PRYSMOID)
+	{
+		if (!pushOutsidePrysmoidPair(p, n, bumperIndex))
+			return false;
+	}
 	
-	return hasCollided;
+	return true;
 }

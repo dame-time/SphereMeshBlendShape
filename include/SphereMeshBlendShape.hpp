@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <variant>
 
 class Sphere {
 public:
@@ -42,6 +43,15 @@ struct AABB
 		for (int i = 0; i < 3; i++)
 			if (p[i] < minCorner[i])
 				minCorner[i] = p[i];
+	}
+	
+	[[nodiscard]] glm::vec3 getRandomInternalPos() const
+	{
+		return glm::vec3(
+				minCorner.x + static_cast<float>(rand()) / RAND_MAX * (maxCorner.x - minCorner.x),
+				minCorner.y + static_cast<float>(rand()) / RAND_MAX * (maxCorner.y - minCorner.y),
+				minCorner.z + static_cast<float>(rand()) / RAND_MAX * (maxCorner.z - minCorner.z)
+		);
 	}
 	
 	[[nodiscard]] glm::vec3 BDD() const
@@ -84,7 +94,9 @@ public:
 	
 	int sphereIndex[3] {-1, -1, -1};
 	
-	BumperPrysmoid() = default;
+	int neibSide[3] {-1, -1, -1};
+	int niebOpp;
+	
 	BumperPrysmoid(
 			int indexA,
 			int indexB,
@@ -95,7 +107,7 @@ public:
 			int direction);
 
 private:
-	glm::vec3 getNormal(const Sphere& a, const Sphere& b, const Sphere& c, int direction) const;
+	[[nodiscard]] glm::vec3 getNormal(const Sphere& a, const Sphere& b, const Sphere& c, int direction) const;
 	glm::mat3x3 getM(const Sphere& a, const Sphere& b, const Sphere& c);
 	glm::vec4 getPlane(const Sphere& a, const Sphere& b, const Sphere& c, int direction);
 };
@@ -106,7 +118,9 @@ public:
 	
 	int sphereIndex[2]{ -1, -1 };
 	
-	BumperCapsuloid() = default;
+	int neibExtreme[2] {-1, -1};
+	std::vector<int> neibTriangles;
+	
 	BumperCapsuloid(int indexA, int indexB, const Sphere& a, const Sphere& b);
 };
 
@@ -114,17 +128,12 @@ class BumperSphere {
 public:
 	int sphereIndex {-1};
 	
-	BumperSphere() = default;
+	std::vector<int> neibCapsules;
 };
 
 class BumperNode {
 public:
-	union
-	{
-		BumperPrysmoid prysmoid;
-		BumperCapsuloid capsuloid;
-		BumperSphere sphere;
-	} bumper;
+	std::variant<BumperPrysmoid, BumperCapsuloid, BumperSphere> bumper;
 	
 	enum {
 		PRYSMOID,
@@ -132,9 +141,7 @@ public:
 		SPHERE
 	} shapeType;
 	
-	std::vector<int> neighbours;
-	
-	BumperNode() = delete;
+	BumperNode() : bumper(BumperSphere()) {};
 };
 
 class BumperGraph {
@@ -153,9 +160,6 @@ private:
 	
 	bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int& bumperIndex);
 	bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int& bumperIndex);
+	bool pushOutsidePrysmoidPair(glm::vec3& p, glm::vec3& n, int& bumperIndex);
 	bool pushOutsideSphere(glm::vec3& p, glm::vec3& n, int& bumperIndex);
-	
-	bool doesShareEdge(BumperCapsuloid& a, BumperCapsuloid& b);
-	bool doesShareEdge(BumperPrysmoid& a, BumperPrysmoid& b);
-	bool doesShareEdge(BumperCapsuloid& a, BumperPrysmoid& b);
 };
