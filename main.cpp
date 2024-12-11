@@ -1,4 +1,4 @@
-#include "SphereMeshBlendShape.hpp"
+#include "sphere_mesh.h"
 
 int main() {
 	SphereMesh s;

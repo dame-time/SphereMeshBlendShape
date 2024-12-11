@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 project(SphereMeshBlendShape VERSION 1.0.0)
 
 # Specify the C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Add the GLM submodule
@@ -12,8 +12,8 @@ set(GLM_DIR "${CMAKE_SOURCE_DIR}/external/glm")
 
 # Add the library
 add_library(SphereMeshBlendShape STATIC
-        src/SphereMeshBlendShape.cpp
-        include/SphereMeshBlendShape.hpp
+        src/sphere_mesh.cpp
+        include/sphere_mesh.h
 )
 
 # Include the header files
