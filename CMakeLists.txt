@@ -14,6 +14,9 @@ set(GLM_DIR "${CMAKE_SOURCE_DIR}/external/glm")
 add_library(SphereMeshBlendShape STATIC
         src/sphere_mesh.cpp
         include/sphere_mesh.h
+        include/bumper_graph.h
+        src/bumer_grid.cpp
+        src/bumper_graph.cpp
 )
 
 # Include the header files
@@ -24,3 +27,11 @@ add_executable(SphereMeshBlendShapeTest main.cpp)
 
 # Link the library to the test executable
 target_link_libraries(SphereMeshBlendShapeTest PRIVATE SphereMeshBlendShape)
+target_compile_options(SphereMeshBlendShapeTest PRIVATE
+        -O3        # Maximum optimization
+        -march=native # Optimize for the host machine
+        -flto      # Link time optimization
+        -ffast-math # Aggressive math optimizations
+        -funroll-loops # Unroll loops for performance
+        -DNDEBUG   # Disable asserts
+)
