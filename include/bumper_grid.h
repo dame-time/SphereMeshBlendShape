@@ -163,6 +163,17 @@ namespace SM::Grid
 		void scaleGrid(float s);
 		void rotateYGrid(int angle);
 
+#ifdef DEBUG
+		void drawGrid() const;
+		void drawGridWithSpheres(const BumperGrid &bg) const;
+		void drawGridWithCapsules(const BumperGrid &bg) const;
+		void drawGridWithPrysmoids(const BumperGrid &bg) const;
+		void drawGridWithDensityColors(const BumperGrid &bg, bool fillCubes) const;
+		void drawGridWithBumpers(const BumperGrid &bg, int n) const;
+		void printHistogram(const BumperGrid &bg) const;
+		[[nodiscard]] std::vector<std::vector<int>> getCellsWithMaxElements(const BumperGrid &bg) const;
+#endif
+
 	private:
 		std::vector<int> cells;
 
@@ -216,7 +227,18 @@ namespace SM::Grid
 
 		void deserialize(const std::string& filepath);
 
+#ifdef DEBUG
 		void clearAllFlagsForTesting(); // for testing purposes only
+		void printOperationHistogram();
+		void drawGrid () const;
+//		void drawSamples(const Shader& shader) const;
+		void exportGridSamplesToPLY(const std::string& filename) const;
+		void printGridMaxCells () const;
+		void printElement (int i) const;
+		void printFlagsStat() const;
+		[[nodiscard]] int parentOf(int i) const;
+		void compareGrids(const BumperGrid &bg1) const;
+#endif
 
 	private:
 		static float PUSH_EPSILON;

@@ -17,15 +17,3 @@ add_library(SphereMeshBlendShape STATIC
 )
 
 target_include_directories(SphereMeshBlendShape PUBLIC include ${GLM_DIR})
-
-#add_executable(SphereMeshBlendShapeTest main.cpp)
-
-#target_link_libraries(SphereMeshBlendShapeTest PRIVATE SphereMeshBlendShape)
-#target_compile_options(SphereMeshBlendShapeTest PRIVATE
-#        -O3
-#        -march=native
-#        -flto
-#        -ffast-math
-#        -funroll-loops
-#        -DNDEBUG
-#)
