@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <istream>
+#include <unordered_map>
 
 #define DEBUG
 #define BOOK_KEEP
@@ -30,10 +31,12 @@
 namespace SM {
 	struct Plane
 	{
+        bool valid { true };
 		glm::vec3 n {}; // unitary vector
 		float k {};
 
 		Plane() = default;
+        Plane(const glm::vec3& norm, float _k) : n(norm), k(_k) {}
 		Plane(const glm::vec3& dir, const glm::vec3& p) : n(glm::normalize(dir)) { setPoint(p); }
 
 		[[nodiscard]] bool isBehind(const glm::vec3& p) const { return glm::dot(n, p) < k; }
@@ -113,24 +116,35 @@ namespace SM {
 		}
 	};
 
-	class JoinedQuadrilateral
+    class FourSpheres
 	{
 		public:
 			int indices[4] {};
+            int prysmoidIndices[2] {};
 			Sphere spheres[4] {};
+            bool failed {};
+
+            bool degenerate {};
+            float error {};
 
 			Plane midPlane {};
 			Plane upperPlane {};
 
-			JoinedQuadrilateral() = default;
-			JoinedQuadrilateral(const Plane& p, const Sphere& a, const Sphere& b, const Sphere& c, const Sphere& d,
-				int i, int j, int k, int l, int dir);
+            FourSpheres() = default;
+            explicit FourSpheres(bool isFailed);
+            FourSpheres(const Sphere& a, const Sphere& b, const Sphere& c, const Sphere& d);
+
+            void computeErorr(const FourSpheres& other);
 
 		private:
 			void sortIndices();
-			[[nodiscard]] Plane computeUpperPlane(int direction) const;
-			void computeSphereRadii();
 	};
+
+    struct CompareByError {
+        bool operator()(const FourSpheres& a, const FourSpheres& b) const {
+            return a.error > b.error;
+        }
+    };
 
 	class SphereMesh {
 	public:
@@ -148,12 +162,17 @@ namespace SM {
 
 		bool saveToFile(const char* path, const char* name = "outSM.sm") const;
 
-		std::vector<std::pair<Prysmoid, Prysmoid>> findPrysmoidPairs();
-		[[nodiscard]] JoinedQuadrilateral joinPrysmoids(const Prysmoid& p1, const Prysmoid& p2) const;
+        [[nodiscard]] std::priority_queue<FourSpheres, std::vector<FourSpheres>, CompareByError> findJoinableQuadrilaterals() const;
+        [[nodiscard]] FourSpheres joinPrysmoids(int p1, int p2) const;
+        [[nodiscard]] FourSpheres joinPrysmoids(int p1, int p2, int a, int b, int c, int d) const;
+        bool generateQuadrilateral(float threshold);
+        [[nodiscard]] bool isSphereInQuadrilateral(int sphereIdx) const;
+        std::vector<int> getSymmetricalSpheres(int sphereIdx);
 
-		int intersectedSphereAlongRay(const glm::vec3& rayOrigin, const glm::vec3& rayDir, glm::vec3& hitPos);
-		bool raySphereIntersection(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
-								   const glm::vec3& sphereCenter, float sphereRadius, float& t, glm::vec3& hitPos);
+		int intersectedSphereAlongRay(const glm::vec3& rayOrigin, const glm::vec3& rayDir, glm::vec3& hitPos) const;
+
+		static bool raySphereIntersection(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
+		                                  const glm::vec3& sphereCenter, float sphereRadius, float& t, glm::vec3& hitPos);
 
 		void duplicateSphere(int i);
 		void removeSphere(int i);
@@ -173,6 +192,8 @@ namespace SM {
 		void printf() const;
 
 	private:
+        std::unordered_map<int, std::vector<int>> quadsSpheres;
+
 		void updateBBox();
 
 		void removeDegeneratePrysmoids();
