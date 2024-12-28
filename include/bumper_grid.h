@@ -200,6 +200,7 @@ namespace SM::Grid
 
 		std::vector<Bumper> bumper;
 		std::vector<Sphere> sphere;
+		std::vector<GridSample> gridSamples;
 
 		SpatialGrid grid;
 
@@ -245,7 +246,6 @@ namespace SM::Grid
 
 		AABB bbox;
 
-		std::vector<GridSample> gridSamples;
 		std::vector<std::set<int>> gridWIP;
 
 		float projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
