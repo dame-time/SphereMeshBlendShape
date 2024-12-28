@@ -157,9 +157,6 @@ Plane BumperPrysmoid::computeUpperPlane(const Sphere &sa, const Sphere &sb, cons
 	}
 
 	std::cerr << "Degenerate Prysmoid detected (Normal diverged)" << std::endl;
-	int randomNum = rand() % 3;
-	auto filename = "degPrysmoid" + std::to_string(randomNum) + ".sm";
-	savePrysmoidAsSM("/Users/davidepaollilo/Workspaces/C++/SMToMeshFitter/assets/" + filename, sa, sb, sc);
 
 	return {n, a};
 }

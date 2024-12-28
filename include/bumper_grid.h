@@ -228,11 +228,11 @@ namespace SM::Grid
 
 		void deserialize(const std::string& filepath);
 
-#ifdef DEBUG
 		void clearAllFlagsForTesting(); // for testing purposes only
+
+#ifdef DEBUG
 		void printOperationHistogram();
 		void drawGrid () const;
-//		void drawSamples(const Shader& shader) const;
 		void exportGridSamplesToPLY(const std::string& filename) const;
 		void printGridMaxCells () const;
 		void printElement (int i) const;

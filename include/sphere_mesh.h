@@ -23,9 +23,6 @@
 #include <istream>
 #include <unordered_map>
 
-#define DEBUG
-#define BOOK_KEEP
-
 #define MAX_GRID_BUMPERS 5
 
 namespace SM {
