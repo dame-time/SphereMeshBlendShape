@@ -443,7 +443,8 @@ void SphereMesh::printf() const{
 			<< "Sphere mesh: "
 			<< spheres.size() << " spheres, "
 			<< capsuloids.size() << " caps, "
-			<< prysmoids.size() << " prys"
+			<< prysmoids.size() << " prys, "
+			<< quadrilaterals.size() << " quads."
 			<< std::endl;
 }
 
@@ -620,8 +621,8 @@ bool SphereMesh::loadFromText(const char *text)
 
 	std::string structCounter = content[1];
 	std::string delimiter = " ";
-	int nSpheres = 0, nCapsuloids = 0, nPrysmoids = 0;
-	for (int i = 0; i < 3; i++) {
+	int nSpheres = 0, nCapsuloids = 0, nPrysmoids = 0, nQuads = 0;
+	for (int i = 0; i < 4; i++) {
 		std::string token = structCounter.substr(0, structCounter.find(delimiter));
 		structCounter.erase(0, structCounter.find(delimiter) + delimiter.length());
 
@@ -629,8 +630,10 @@ bool SphereMesh::loadFromText(const char *text)
 			nSpheres = std::stoi(token);
 		else if (i == 1)
 			nPrysmoids = std::stoi(token);
-		else
+		else if (i == 2)
 			nCapsuloids = std::stoi(token);
+		else
+			nQuads = std::stoi(token);
 	}
 
 	for (int i = 0; i < nSpheres; i++)
@@ -649,6 +652,12 @@ bool SphereMesh::loadFromText(const char *text)
 	{
 		Capsuloid c = extractCapsuloidFromString(content[2 + nSpheres + nPrysmoids + i]);
 		capsuloids.push_back(c);
+	}
+
+	for (int i = 0; i < nQuads; i++)
+	{
+		Quadrilateral q = extractQuadFromString(content[2 + nSpheres + nPrysmoids + nCapsuloids + i]);
+		quadrilaterals.push_back(q);
 	}
 
 	updateBBox();
@@ -806,11 +815,8 @@ bool SphereMesh::saveToFile (const char *path, const char *name) const
 {
 	std::ostringstream fileContent;
 
-	fileContent << "Sphere Mesh 3.0" << std::endl;
-	fileContent << spheres.size();
-	fileContent << " " << prysmoids.size();
-	fileContent << " " << capsuloids.size() << std::endl;
-	fileContent << " " << quadrilaterals.size() << std::endl;
+	fileContent << "Sphere-mesh 3" << std::endl;
+	fileContent << spheres.size() << " " << prysmoids.size() << " " << capsuloids.size() << " " << quadrilaterals.size() << std::endl;
 
 	for (auto& s : spheres)
 		fileContent << s.center.x << " " << s.center.y << " " << s.center.z << " " << s.radius << std::endl;

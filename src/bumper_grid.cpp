@@ -1456,6 +1456,8 @@ float BumperGrid::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperInd
 					currDist = signedDistanceFromQuad(i, p, newPos, newNorm);
 					if (sideUp) i++; // Skipping the lower plane
 					break;
+				default:
+					break;
 			}
 
 			if (currDist < minDistance)
