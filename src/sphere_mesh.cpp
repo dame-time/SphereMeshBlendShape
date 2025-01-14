@@ -297,7 +297,6 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
 
     Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
 
-
     s0.center = midPlane.project(s0.center);
     s1.center = midPlane.project(s1.center);
     s2.center = midPlane.project(s2.center);
@@ -473,8 +472,8 @@ bool SphereMesh::loadFromFile (const char *filename)
 
 	std::string structCounter = content[1];
 	std::string delimiter = " ";
-	int nSpheres = 0, nCapsuloids = 0, nPrysmoids = 0;
-	for (int i = 0; i < 3; i++) {
+	int nSpheres = 0, nCapsuloids = 0, nPrysmoids = 0, nQuads = 0;
+	for (int i = 0; i < 4; i++) {
 		std::string token = structCounter.substr(0, structCounter.find(delimiter));
 		structCounter.erase(0, structCounter.find(delimiter) + delimiter.length());
 
@@ -482,8 +481,10 @@ bool SphereMesh::loadFromFile (const char *filename)
 			nSpheres = std::stoi(token);
 		else if (i == 1)
 			nPrysmoids = std::stoi(token);
-		else
+		else if (i == 2)
 			nCapsuloids = std::stoi(token);
+		else
+			nQuads = std::stoi(token);
 	}
 
 	for (int i = 0; i < nSpheres; i++)
@@ -502,6 +503,12 @@ bool SphereMesh::loadFromFile (const char *filename)
 	{
 		Capsuloid c = extractCapsuloidFromString(content[2 + nSpheres + nPrysmoids + i]);
 		capsuloids.push_back(c);
+	}
+
+	for (int i = 0; i < nQuads; i++)
+	{
+		Quadrilateral q = extractQuadFromString(content[2 + nSpheres + nPrysmoids + nCapsuloids + i]);
+		quadrilaterals.push_back(q);
 	}
 
 	updateBBox();
@@ -700,7 +707,6 @@ Prysmoid SphereMesh::extractPrysmoidFromString(const std::string &prysmoidString
 {
 	std::string s = prysmoidString;
 
-
 	std::string delimiter = " ";
 	std::string token = s.substr(0, s.find(delimiter));
 	int prysmoidA = std::stoi(token);
@@ -722,14 +728,89 @@ Prysmoid SphereMesh::extractPrysmoidFromString(const std::string &prysmoidString
 	return prysmoid;
 }
 
+void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
+{
+	Sphere s0 = spheres[quad.indices[0]];
+	Sphere s1 = spheres[quad.indices[1]];
+	Sphere s2 = spheres[quad.indices[2]];
+	Sphere s3 = spheres[quad.indices[3]];
+
+	glm::vec3 diagonalAB = s0.center - s2.center;
+	glm::vec3 diagonalCD = s1.center - s3.center;
+	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+
+	Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
+
+	s0.center = midPlane.project(s0.center);
+	s1.center = midPlane.project(s1.center);
+	s2.center = midPlane.project(s2.center);
+	s3.center = midPlane.project(s3.center);
+
+	Plane upperPlane = commonTangentPlane(s0, s1, s2, s3, 1);
+
+	s0.radius = glm::distance(s0.center, upperPlane.project(s0.center));
+	s1.radius = glm::distance(s1.center, upperPlane.project(s1.center));
+	s2.radius = glm::distance(s2.center, upperPlane.project(s2.center));
+	s3.radius = glm::distance(s3.center, upperPlane.project(s3.center));
+
+	FourSpheres original = {spheres[quad.indices[0]], spheres[quad.indices[1]], spheres[quad.indices[2]], spheres[quad.indices[3]]};
+	FourSpheres jq = {s0, s1, s2, s3};
+
+	jq.indices[0] = quad.indices[0];
+	jq.indices[1] = quad.indices[1];
+	jq.indices[2] = quad.indices[2];
+	jq.indices[3] = quad.indices[3];
+	jq.midPlane = midPlane;
+	jq.upperPlane = upperPlane;
+
+	jq.computeError(original);
+	if (!upperPlane.valid)
+		jq.error = FLT_MAX;
+
+	joinedQuads.push_back(jq);
+}
+
+Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString)
+{
+	std::string s = quadString;
+
+	const std::string delimiter = " ";
+	std::string token = s.substr(0, s.find(delimiter));
+	const int idx0 = std::stoi(token);
+	s.erase(0, s.find(delimiter) + delimiter.length());
+
+	token = s.substr(0, s.find(delimiter));
+	const int idx1 = std::stoi(token);
+	s.erase(0, s.find(delimiter) + delimiter.length());
+
+	token = s.substr(0, s.find(delimiter));
+	const int idx2 = std::stoi(token);
+	s.erase(0, s.find(delimiter) + delimiter.length());
+
+	token = s.substr(0, s.find(delimiter));
+	const int idx3 = std::stoi(token);
+
+	Quadrilateral quad{};
+
+	quad.indices[0] = idx0;
+	quad.indices[1] = idx1;
+	quad.indices[2] = idx2;
+	quad.indices[3] = idx3;
+
+	computeFourSpheresFrom(quad);
+
+	return quad;
+}
+
 bool SphereMesh::saveToFile (const char *path, const char *name) const
 {
 	std::ostringstream fileContent;
 
-	fileContent << "Sphere Mesh 2.0" << std::endl;
+	fileContent << "Sphere Mesh 3.0" << std::endl;
 	fileContent << spheres.size();
 	fileContent << " " << prysmoids.size();
 	fileContent << " " << capsuloids.size() << std::endl;
+	fileContent << " " << quadrilaterals.size() << std::endl;
 
 	for (auto& s : spheres)
 		fileContent << s.center.x << " " << s.center.y << " " << s.center.z << " " << s.radius << std::endl;
@@ -739,6 +820,9 @@ bool SphereMesh::saveToFile (const char *path, const char *name) const
 
 	for (auto& c : capsuloids)
 		fileContent << c.indices[0] << " " << c.indices[1] << std::endl;
+
+	for (auto& q : quadrilaterals)
+		fileContent << q.indices[0] << " " << q.indices[1] << " " << q.indices[2] << " " << q.indices[3] << std::endl;
 
 	namespace fs = std::__fs::filesystem;
 	fs::path cwd = fs::current_path();

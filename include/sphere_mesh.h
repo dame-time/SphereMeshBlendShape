@@ -206,6 +206,9 @@ namespace SM {
 		static Sphere extractSphereFromString(const std::string &sphereString);
 		static Capsuloid extractCapsuloidFromString(const std::string &s);
 		static Prysmoid extractPrysmoidFromString(const std::string &s);
+		Quadrilateral extractQuadFromString(const std::string &s);
+
+		void computeFourSpheresFrom(const Quadrilateral& quad);
 	};
 
 	// TODO: implement this class
