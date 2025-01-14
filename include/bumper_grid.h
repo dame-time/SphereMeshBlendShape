@@ -70,6 +70,29 @@ namespace SM::Grid
 		explicit BumperSphere(const int sphereIndex) : sphereIndex(sphereIndex) {};
 	};
 
+	class BumperQuad
+	{
+		public:
+			Plane upperPlane {};
+			Plane midPlane {};
+			Plane sidePlanes[4] {};
+
+			int sphereIndex[4] {-1, -1, -1, -1};
+			int neibSide[4] {-1, -1, -1, -1};
+			int neibOpp{};
+
+			BumperQuad() = default;
+			BumperQuad(int indexA,
+				int indexB,
+				int indexC,
+				int indexD,
+				const Sphere& v0,
+				const Sphere& v1,
+				const Sphere& v2,
+				const Sphere& v3,
+				int direction);
+	};
+
 	struct CompositeBumper
 	{
 		int bumperIndices[MAX_GRID_BUMPERS] {};
@@ -91,12 +114,13 @@ namespace SM::Grid
 
 	class Bumper {
 	public:
-		std::variant<BumperPrysmoid, BumperCapsuloid, BumperSphere, CompositeBumper> bumper;
+		std::variant<BumperPrysmoid, BumperCapsuloid, BumperSphere, BumperQuad, CompositeBumper> bumper;
 
 		enum {
 			SPHERE,
 			CAPSULOID,
 			PRYSMOID,
+			QUAD,
 			COMPOSITE
 		} shapeType {};
 
@@ -123,7 +147,7 @@ namespace SM::Grid
 	public:
 		WIPGrid() = default;
 
-		void format(const SM::AABB& boundingBox, int requiredNumCells);
+		void format(const AABB& boundingBox, int requiredNumCells);
 		void populate(const std::vector<GridSample>& samples);
 
 		void bake(BumperGrid& bg) const;
@@ -252,6 +276,7 @@ namespace SM::Grid
 
 		bool constructionPushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool constructionPushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
+		bool constructionPushOutsideQuad(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool pushOutsideSphere(glm::vec3& p, glm::vec3& n, const int& bumperIndex)  const;
 
 		bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int bumperIndex)  const;
@@ -262,12 +287,15 @@ namespace SM::Grid
 		[[nodiscard]] float closestSphereOn(const glm::vec3& p, const BumperCapsuloid &bc) const;
 
 		[[nodiscard]] bool isPointOverPrysmoid(int bumperIndex, const glm::vec3& p) const;
+		[[nodiscard]] bool isPointOverQuad(int bumperIndex, const glm::vec3& p) const;
 
 		float signedDistanceFromSphere(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
 		closestNorm) const;
 		float signedDistanceFromCapsuloid(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
 		closestNorm) const;
 		float signedDistanceFromPrysmoid(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
+		closestNorm) const;
+		float signedDistanceFromQuad(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
 		closestNorm) const;
 
 		[[nodiscard]] std::pair<int, float> sampleSignedDistanceFromSphere(int bumperIndex, const glm::vec3& p) const;
@@ -298,6 +326,7 @@ namespace SM::Grid
 		void initializeBumperSpheres();
 		void initializeBumperCapsuloids(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
 		void initializeBumperPrysmoids(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
+		void initializeBumperQuads(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
 		void initializeBumperNodes(const SphereMesh &sm);
 
 		[[nodiscard]] std::set<int> descendents(int i) const;
