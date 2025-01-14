@@ -321,16 +321,17 @@ bool BumperGrid::serialize(const std::string &filepath) const
 	}
 
 	file << "BumperGrid 2\n";
-	int capsuloids = 0, prysmoids = 0, composite = 0;
+	int capsuloids = 0, prysmoids = 0, quads = 0, composite = 0;
 	for (auto& bn : bumper)
 	{
 		if (bn.shapeType == Bumper::SPHERE) continue;
 		if (bn.shapeType == Bumper::CAPSULOID) ++capsuloids;
 		else if (bn.shapeType == Bumper::PRYSMOID) ++prysmoids;
+		else if (bn.shapeType == Bumper::QUAD) ++quads;
 		else ++composite;
 	}
 
-	file << sphere.size() << " " << capsuloids << " " << prysmoids << " " << composite << "\n";
+	file << sphere.size() << " " << capsuloids << " " << prysmoids << " " << quads << " " << composite << "\n";
 	for (auto& s : sphere)
 		file << s.center.x << " " << s.center.y << " " << s.center.z << " " << s.radius << "\n";
 
@@ -386,7 +387,29 @@ void BumperGrid::deserializePrysmoids(std::ifstream &file, int numSpheres, int n
 	}
 }
 
-void BumperGrid::deserializeComposite(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids, int numCompositeBumpers)
+void BumperGrid::deserializeQuads(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids,
+	int numQuads)
+{
+	for (int i = 0; i < numQuads; i++)
+	{
+		std::string bumperNodeData;
+		std::getline(file, bumperNodeData);
+
+		std::istringstream iss(bumperNodeData);
+		BumperQuad bq;
+
+		if (!(iss >> bq.sphereIndex[0] >> bq.sphereIndex[1] >> bq.sphereIndex[2] >> bq.sphereIndex[3] >>
+			bq.neibSide[0] >> bq.neibSide[1] >> bq.neibSide[2] >> bq.neibSide[3] >>
+			bq.neibOpp >>
+			bq.sidePlanes[0] >> bq.sidePlanes[1] >> bq.sidePlanes[2] >> bq.sidePlanes[3] >> bq.midPlane >> bq.upperPlane))
+			throw std::runtime_error("Error deserializing BumperQuad data.");
+
+		bumper[numSpheres + numCapsuloids + numPrysmoids + i].shapeType = Bumper::QUAD;
+		bumper[numSpheres + numCapsuloids + numPrysmoids + i].bumper = bq;
+	}
+}
+
+void BumperGrid::deserializeComposite(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids, int numQuads, int numCompositeBumpers)
 {
 	for (int i = 0; i < numCompositeBumpers; i++)
 	{
@@ -417,17 +440,18 @@ void BumperGrid::deserializeComposite(std::ifstream &file, int numSpheres, int n
 			cb.bumperIndices[j] = std::stoi(bumperIndex);
 		}
 
-		bumper[numSpheres + numCapsuloids + numPrysmoids + i].shapeType = Bumper::COMPOSITE;
-		bumper[numSpheres + numCapsuloids + numPrysmoids + i].bumper = cb;
+		bumper[numSpheres + numCapsuloids + numPrysmoids + numQuads + i].shapeType = Bumper::COMPOSITE;
+		bumper[numSpheres + numCapsuloids + numPrysmoids + numQuads + i].bumper = cb;
 	}
 }
 
 void BumperGrid::deserializeBumpers(std::ifstream& file, const int numSpheres, const int numCapsuloids,
-                                    const int numPrysmoids, const int numCompositeBumpers)
+                                    const int numPrysmoids, const int numQuads, const int numCompositeBumpers)
 {
 	deserializeCapsuloids(file, numSpheres, numCapsuloids);
 	deserializePrysmoids(file, numSpheres, numCapsuloids, numPrysmoids);
-	deserializeComposite(file, numSpheres, numCapsuloids, numPrysmoids, numCompositeBumpers);
+	deserializeQuads(file, numSpheres, numCapsuloids, numPrysmoids, numQuads);
+	deserializeComposite(file, numSpheres, numCapsuloids, numPrysmoids, numQuads, numCompositeBumpers);
 }
 
 void BumperGrid::deserialize(const std::string &filepath)
@@ -443,15 +467,15 @@ void BumperGrid::deserialize(const std::string &filepath)
 		throw std::runtime_error("Error: Unsupported file format or version in file: " + filepath);
 
 	// Read the number of spheres and bumper nodes
-	int numSpheres, numCapsuloids, numPrysmoids, numCompositeBumpers;
-	file >> numSpheres >> numCapsuloids >> numPrysmoids >> numCompositeBumpers;
+	int numSpheres, numCapsuloids, numPrysmoids, numQuads, numCompositeBumpers;
+	file >> numSpheres >> numCapsuloids >> numPrysmoids >> numQuads >> numCompositeBumpers;
 
 	// Resize the vectors to accommodate the data
 	sphere.clear();
 	bumper.clear();
 
 	sphere.resize(numSpheres);
-	bumper.resize(numSpheres + numCapsuloids + numPrysmoids + numCompositeBumpers);
+	bumper.resize(numSpheres + numCapsuloids + numPrysmoids + numQuads + numCompositeBumpers);
 
 	for (int i = 0; i < numSpheres; ++i) {
 		float x, y, z, radius;
@@ -465,7 +489,7 @@ void BumperGrid::deserialize(const std::string &filepath)
 		bumper[i].bumper = bs;
 	}
 
-	deserializeBumpers(file, numSpheres, numCapsuloids, numPrysmoids, numCompositeBumpers);
+	deserializeBumpers(file, numSpheres, numCapsuloids, numPrysmoids, numQuads, numCompositeBumpers);
 
 	std::string gridData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 	grid.deserialize(gridData);
@@ -860,29 +884,15 @@ void BumperGrid::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<std
 
 void BumperGrid::initializeBumperQuads(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj)
 {
-	for (const Quadrilateral &p : sm.quadrilaterals)
+	for (const FourSpheres &p : sm.joinedQuads)
 	{
 		BumperQuad bqUpper = BumperQuad(
-			p.indices[0],
-			p.indices[1],
-			p.indices[2],
-			p.indices[3],
-			sphere[p.indices[0]],
-			sphere[p.indices[1]],
-			sphere[p.indices[2]],
-			sphere[p.indices[3]],
+			p,
 			1
 		);
 
 		BumperQuad bqLower = BumperQuad(
-			p.indices[0],
-			p.indices[1],
-			p.indices[2],
-			p.indices[3],
-			sphere[p.indices[0]],
-			sphere[p.indices[1]],
-			sphere[p.indices[2]],
-			sphere[p.indices[3]],
+			p,
 			-1
 		);
 
@@ -1425,6 +1435,7 @@ float BumperGrid::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperInd
 		{
 			glm::vec3 newPos, newNorm;
 			float currDist = FLT_MAX;
+			bool sideUp = false;
 			switch (bumper[i].shapeType)
 			{
 				case Bumper::SPHERE:
@@ -1434,18 +1445,19 @@ float BumperGrid::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperInd
 					currDist = signedDistanceFromCapsuloid(i, p, newPos, newNorm);
 					break;
 				case Bumper::PRYSMOID:
-					const bool sideUp = isPointOverPrysmoid(i, p);
+					sideUp = isPointOverPrysmoid(i, p);
 					if (!sideUp) i++; // Skipping the upper plane
 					currDist = signedDistanceFromPrysmoid(i, p, newPos, newNorm);
 					if (sideUp) i++; // Skipping the lower plane
 					break;
 				case Bumper::QUAD:
-					const bool isOnUpSide = isPointOverQuad(i, p);
-					if (!isOnUpSide) i++; // Skipping the upper plane
+					sideUp = isPointOverQuad(i, p);
+					if (!sideUp) i++; // Skipping the upper plane
 					currDist = signedDistanceFromQuad(i, p, newPos, newNorm);
-					if (isOnUpSide) i++; // Skipping the lower plane
+					if (sideUp) i++; // Skipping the lower plane
 					break;
 			}
+
 			if (currDist < minDistance)
 			{
 				bestPos = newPos;
@@ -2010,6 +2022,25 @@ std::string Bumper::serialize() const
 		<< " " << bp.midPlane.serialize()
 		<< " " << bp.upperPlane.serialize();
 	}
+	else if (shapeType == QUAD)
+	{
+		auto bq = std::get<BumperQuad>(bumper);
+		oss << bq.sphereIndex[0]
+		<< " " << bq.sphereIndex[1]
+		<< " " << bq.sphereIndex[2]
+		<< " " << bq.sphereIndex[3]
+		<< " " << bq.neibSide[0]
+		<< " " << bq.neibSide[1]
+		<< " " << bq.neibSide[2]
+		<< " " << bq.neibSide[3]
+		<< " " << bq.neibOpp
+		<< " " << bq.sidePlanes[0].serialize()
+		<< " " << bq.sidePlanes[1].serialize()
+		<< " " << bq.sidePlanes[2].serialize()
+		<< " " << bq.sidePlanes[3].serialize()
+		<< " " << bq.midPlane.serialize()
+		<< " " << bq.upperPlane.serialize();
+	}
 	else if (shapeType == COMPOSITE)
 	{
 		auto cb = std::get<CompositeBumper>(bumper);
@@ -2067,6 +2098,95 @@ bool Bumper::operator == (const Bumper& bn) const
 	}
 
 	return false;
+}
+
+
+BumperQuad::BumperQuad(const FourSpheres &fs, int direction)
+{
+	upperPlane = fs.upperPlane;
+	midPlane = fs.midPlane;
+
+	if (direction < 0)
+		upperPlane.flip();
+
+	sphereIndex[0] = fs.indices[0];
+	sphereIndex[1] = fs.indices[1];
+	sphereIndex[2] = fs.indices[2];
+	sphereIndex[3] = fs.indices[3];
+
+	BumperPrysmoid bp = BumperPrysmoid(sphereIndex[0], sphereIndex[1], sphereIndex[2], fs.spheres[0], fs.spheres[1], fs.spheres[2], direction);
+	BumperPrysmoid bp1 = BumperPrysmoid(sphereIndex[2], sphereIndex[3], sphereIndex[0], fs.spheres[2], fs.spheres[3], fs.spheres[0], direction);
+
+	getSidePlanes(bp, bp1);
+}
+
+std::vector<Plane> BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const BumperPrysmoid &bp1)
+{
+	std::vector<Plane> res;
+
+	if (bp.m0 == bp1.m0)
+	{
+		sidePlanes[0] = bp.m1;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m1;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m0 == bp1.m1)
+	{
+		sidePlanes[0] = bp.m1;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m0 == bp1.m2)
+	{
+		sidePlanes[0] = bp.m1;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m1;
+	}
+	else if (bp.m1 == bp1.m0)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m1;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m1 == bp1.m1)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m1 == bp1.m2)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m2;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m1;
+	}
+	else if (bp.m2 == bp1.m0)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m1;
+		sidePlanes[2] = bp1.m1;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m2 == bp1.m1)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m1;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m2;
+	}
+	else if (bp.m2 == bp1.m2)
+	{
+		sidePlanes[0] = bp.m0;
+		sidePlanes[1] = bp.m1;
+		sidePlanes[2] = bp1.m0;
+		sidePlanes[3] = bp1.m1;
+	}
 }
 
 bool CompositeBumper::operator == (const CompositeBumper &bn) const

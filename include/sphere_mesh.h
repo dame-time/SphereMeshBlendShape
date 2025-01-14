@@ -49,6 +49,8 @@ namespace SM {
 
 		[[nodiscard]] std::string serialize() const;
 
+		bool operator == (const Plane& other) const;
+
 		void flip () { n = -n; k = -k; }
 	};
 
@@ -131,7 +133,7 @@ namespace SM {
             explicit FourSpheres(bool isFailed);
             FourSpheres(const Sphere& a, const Sphere& b, const Sphere& c, const Sphere& d);
 
-            void computeErorr(const FourSpheres& other);
+            void computeError(const FourSpheres& other);
 
 		private:
 			void sortIndices();
@@ -153,6 +155,8 @@ namespace SM {
 		std::vector<Capsuloid> capsuloids;
 		std::vector<Prysmoid> prysmoids;
 		std::vector<Quadrilateral> quadrilaterals;
+
+		std::vector<FourSpheres> joinedQuads;
 
 		bool loadFromText(const char* text);
 		bool loadFromFile(const char* text);

@@ -322,7 +322,7 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
     jq.midPlane = midPlane;
     jq.upperPlane = upperPlane;
 
-    jq.computeErorr(original);
+    jq.computeError(original);
     if (!upperPlane.valid)
         jq.error = FLT_MAX;
 
@@ -357,6 +357,7 @@ bool SphereMesh::generateQuadrilateral(float threshold)
     quadsSpheres[b].push_back(quadrilaterals.size() - 1);
     quadsSpheres[c].push_back(quadrilaterals.size() - 1);
     quadsSpheres[d].push_back(quadrilaterals.size() - 1);
+	joinedQuads.push_back(elem);
 
     return true;
 }
@@ -537,6 +538,17 @@ std::string Plane::serialize() const
 	return res;
 }
 
+bool Plane::operator == (const Plane& other) const
+{
+	if (glm::dot(n, other.n) < 0.99f)
+		return false;
+
+	if (glm::abs(k - other.k) > 0.01f)
+		return false;
+
+	return true;
+}
+
 FourSpheres::FourSpheres(const Sphere &a, const Sphere &b, const Sphere &c, const Sphere &d)
 {
 	spheres[0] = a;
@@ -545,7 +557,7 @@ FourSpheres::FourSpheres(const Sphere &a, const Sphere &b, const Sphere &c, cons
 	spheres[3] = d;
 }
 
-void FourSpheres::computeErorr(const FourSpheres &other)
+void FourSpheres::computeError(const FourSpheres &other)
 {
     error = 0.0f;
     for (int i = 0; i < 4; i++)

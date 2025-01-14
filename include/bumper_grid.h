@@ -82,15 +82,10 @@ namespace SM::Grid
 			int neibOpp{};
 
 			BumperQuad() = default;
-			BumperQuad(int indexA,
-				int indexB,
-				int indexC,
-				int indexD,
-				const Sphere& v0,
-				const Sphere& v1,
-				const Sphere& v2,
-				const Sphere& v3,
-				int direction);
+			BumperQuad(const FourSpheres& fs, int direction);
+
+		private:
+			std::vector<Plane> getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1);
 	};
 
 	struct CompositeBumper
@@ -245,9 +240,10 @@ namespace SM::Grid
 
 		void deserializeCapsuloids(std::ifstream &file, int numSpheres, int numCapsuloids);
 		void deserializePrysmoids(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids);
-		void deserializeComposite(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids,
+		void deserializeQuads(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids, int numQuads);
+		void deserializeComposite(std::ifstream &file, int numSpheres, int numCapsuloids, int numPrysmoids, int numQuads,
 		                          int numCompositeBumpers);
-		void deserializeBumpers(std::ifstream& file, int numSpheres, int numCapsuloids, int numPrysmoids,
+		void deserializeBumpers(std::ifstream& file, int numSpheres, int numCapsuloids, int numPrysmoids, int numQuads,
 		                        int numCompositeBumpers);
 
 		void deserialize(const std::string& filepath);
