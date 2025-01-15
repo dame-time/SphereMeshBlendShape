@@ -167,8 +167,10 @@ std::pair<int, float> BumperGrid::signedDistanceFromBumper(const int i, const gl
 		return sampleSignedDistanceFromSphere(i, p);
 	if (bumper[i].shapeType == Bumper::CAPSULOID)
 		return sampleSignedDistanceFromCapsuloid(i, p);
+	if (bumper[i].shapeType == Bumper::PRYSMOID)
+		return sampleSignedDistanceFromPrysmoid(i, p);
 
-	return sampleSignedDistanceFromPrysmoid(i, p);
+	return sampleSignedDistanceFromQuad(i, p);
 }
 
 void BumperGrid::sampleDistanceFromBumperWithPosition(const glm::vec<3, float> &p, const int proposedIndex, glm::vec3 &closestPos) const
@@ -178,8 +180,10 @@ void BumperGrid::sampleDistanceFromBumperWithPosition(const glm::vec<3, float> &
 		signedDistanceFromSphere(proposedIndex, p, closestPos, closestNorm);
 	else if (bumper[proposedIndex].shapeType == Bumper::CAPSULOID)
 		signedDistanceFromCapsuloid(proposedIndex, p, closestPos, closestNorm);
-	else
+	else if (bumper[proposedIndex].shapeType == Bumper::PRYSMOID)
 		signedDistanceFromPrysmoid(proposedIndex, p, closestPos, closestNorm);
+	else
+		signedDistanceFromQuad(proposedIndex, p, closestPos, closestNorm);
 }
 
 void BumperGrid::createGridSamplesFrom (const std::vector<glm::vec3>& pos, const float skinThickness)
@@ -949,10 +953,10 @@ void BumperGrid::initializeBumperQuads(const SphereMesh &sm, std::vector<std::ve
 		edge2.bumper = bc2;
 
 		Bumper edge3 {};
-		edge2.shapeType = Bumper::CAPSULOID;
-		bc2.neibExtreme[0] = p.indices[2];
-		bc2.neibExtreme[1] = p.indices[3];
-		edge2.bumper = bc3;
+		edge3.shapeType = Bumper::CAPSULOID;
+		bc3.neibExtreme[0] = p.indices[2];
+		bc3.neibExtreme[1] = p.indices[3];
+		edge3.bumper = bc3;
 
 		bumper.push_back(nodeUpper);
 		bumper.push_back(nodeLower);
@@ -1300,7 +1304,7 @@ bool BumperGrid::constructionPushOutsideQuad(glm::vec3 &p, glm::vec3 &n, int &bu
 	if (bq.midPlane.isBehind(p))
 	{
 		bumperIndex = bq.neibOpp;
-		return constructionPushOutsidePrysmoid(p, n, bumperIndex);
+		return constructionPushOutsideQuad(p, n, bumperIndex);
 	}
 
 	if (bq.sidePlanes[0].isBehind(p))
@@ -1358,12 +1362,12 @@ float BumperGrid::signedDistanceFromQuad(int bumperIndex, const glm::vec3 &p, gl
 	const Bumper& node = bumper[bumperIndex];
 	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
 
-	if (bq.midPlane.isBehind(p)) return signedDistanceFromPrysmoid(bq.neibOpp, p, closestPos, closestNorm);
+	// if (bq.midPlane.isBehind(p)) return signedDistanceFromQuad(bq.neibOpp, p, closestPos, closestNorm);
 
-	if (bq.sidePlanes[0].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[0], p, closestPos,  closestNorm);
-	if (bq.sidePlanes[1].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[1], p, closestPos,  closestNorm);
-	if (bq.sidePlanes[2].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[2], p, closestPos,  closestNorm);
-	if (bq.sidePlanes[3].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[3], p, closestPos,  closestNorm);
+	// if (bq.sidePlanes[0].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[0], p, closestPos,  closestNorm);
+	// if (bq.sidePlanes[1].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[1], p, closestPos,  closestNorm);
+	// if (bq.sidePlanes[2].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[2], p, closestPos,  closestNorm);
+	// if (bq.sidePlanes[3].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[3], p, closestPos,  closestNorm);
 
 	closestNorm = bq.upperPlane.n;
 	closestPos = bq.upperPlane.project(p);
@@ -1405,11 +1409,6 @@ std::pair<int, float> BumperGrid::sampleSignedDistanceFromPrysmoid (int bumperIn
 	const Bumper& node = bumper[bumperIndex];
 	const BumperPrysmoid bp = std::get<BumperPrysmoid>(node.bumper);
 
-	const Sphere& v0 = sphere[bp.sphereIndex[0]];
-	const Sphere& v1 = sphere[bp.sphereIndex[1]];
-	const Sphere& v2 = sphere[bp.sphereIndex[2]];
-	const glm::vec3 v = p - v0.center;
-
 	if (bp.midPlane.isBehind(p))
 		return {-1, FLT_MAX};
 
@@ -1418,6 +1417,22 @@ std::pair<int, float> BumperGrid::sampleSignedDistanceFromPrysmoid (int bumperIn
 	if (bp.m0.isBehind(p)) return sampleSignedDistanceFromCapsuloid(bp.neibSide[0], p);
 
 	return {bumperIndex, bp.upperPlane.distance(p)};
+}
+
+std::pair<int, float> BumperGrid::sampleSignedDistanceFromQuad(int bumperIndex, const glm::vec3 &p) const
+{
+	const Bumper& node = bumper[bumperIndex];
+	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
+
+	if (bq.midPlane.isBehind(p))
+		return {-1, FLT_MAX};
+
+	if (bq.sidePlanes[0].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
+	if (bq.sidePlanes[1].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[1], p);
+	if (bq.sidePlanes[2].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[2], p);
+	if (bq.sidePlanes[3].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[3], p);
+
+	return {bumperIndex, bq.upperPlane.distance(p)};
 }
 
 float BumperGrid::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const
@@ -2109,7 +2124,7 @@ BumperQuad::BumperQuad(const FourSpheres &fs, int direction)
 	midPlane = fs.midPlane;
 
 	if (direction < 0)
-		upperPlane.flip();
+		midPlane.flip();
 
 	sphereIndex[0] = fs.indices[0];
 	sphereIndex[1] = fs.indices[1];
@@ -2189,6 +2204,8 @@ std::vector<Plane> BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const Bum
 		sidePlanes[2] = bp1.m0;
 		sidePlanes[3] = bp1.m1;
 	}
+
+	return res;
 }
 
 bool CompositeBumper::operator == (const CompositeBumper &bn) const
@@ -2296,6 +2313,17 @@ void BumperGrid::sortByType()
 			bp.neibSide[2] = inversePermutation[bp.neibSide[2]];
 
 			bp.neibOpp = inversePermutation[bp.neibOpp];
+		}
+		else if (bn.shapeType == Bumper::QUAD)
+		{
+			auto& bq = std::get<BumperQuad>(bn.bumper);
+
+			bq.neibSide[0] = inversePermutation[bq.neibSide[0]];
+			bq.neibSide[1] = inversePermutation[bq.neibSide[1]];
+			bq.neibSide[2] = inversePermutation[bq.neibSide[2]];
+			bq.neibSide[3] = inversePermutation[bq.neibSide[3]];
+
+			bq.neibOpp = inversePermutation[bq.neibOpp];
 		}
 	}
 
