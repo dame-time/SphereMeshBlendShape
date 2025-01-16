@@ -28,6 +28,7 @@
 
 #include "sphere_mesh.h"
 #include "bumper_grid.h"
+#include "glm/gtc/epsilon.hpp"
 
 using namespace SM;
 
@@ -242,48 +243,6 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2) const
     return joinPrysmoids(p1, p2, a, b, c, d);
 }
 
-Plane commonTangentPlane(const Sphere& s0, const Sphere& s1, const Sphere& s2, const Sphere& s3, int direction)
-{
-    glm::vec3 a = s0.center;
-    glm::vec3 b = s1.center;
-    glm::vec3 c = s2.center;
-    glm::vec3 d = s3.center;
-
-    auto sign = static_cast<float>(direction);
-
-    auto n = glm::vec3(0);
-    glm::vec3 startN = n;
-
-    Plane p;
-
-    for (int i = 0; i < 1000; i++){
-        a = s0.center + n * s0.radius;
-        b = s1.center + n * s1.radius;
-        c = s2.center + n * s2.radius;
-        d = s3.center + n * s3.radius;
-
-        glm::vec3 new_n = glm::normalize(sign * glm::cross(a - c, b - d));
-        if (glm::dot(n, new_n) >= 0.999f)
-        {
-            if (glm::dot(startN, new_n) < 0)
-            {
-                std::cerr << "Degenerate Prysmoid detected (Normal flipped)" << std::endl;
-                p.valid = false;
-                return p;
-            }
-
-            p = {new_n, (a + b + c + d) / 4.0f};
-            return p;
-        }
-        n = new_n;
-    }
-
-    std::cerr << "Degenerate Prysmoid detected (Normal diverged)" << std::endl;
-    p.valid = false;
-    return p;
-}
-
-
 FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d) const
 {
     Sphere s0 = spheres[a];
@@ -356,7 +315,6 @@ bool SphereMesh::generateQuadrilateral(float threshold)
     quadsSpheres[b].push_back(quadrilaterals.size() - 1);
     quadsSpheres[c].push_back(quadrilaterals.size() - 1);
     quadsSpheres[d].push_back(quadrilaterals.size() - 1);
-	joinedQuads.push_back(elem);
 
     return true;
 }
@@ -548,13 +506,17 @@ std::string Plane::serialize() const
 
 bool Plane::operator == (const Plane& other) const
 {
-	if (glm::dot(n, other.n) < 0.99f)
-		return false;
+	constexpr float epsilon = 1e-3f;
 
-	if (glm::abs(k - other.k) > 0.01f)
-		return false;
+	const glm::vec3 n1 = glm::normalize(n);
+	const glm::vec3 n2 = glm::normalize(other.n);
 
-	return true;
+	const bool normalsEqual = glm::all(glm::epsilonEqual(n1, n2, epsilon));
+	const bool normalsOpposite = glm::all(glm::epsilonEqual(n1, -n2, epsilon));
+	const bool kEqual = std::fabs(k - other.k) < epsilon;
+	const bool kOpposite = std::fabs(k + other.k) < epsilon;
+
+	return (normalsEqual && kEqual) || (normalsOpposite && kOpposite);
 }
 
 FourSpheres::FourSpheres(const Sphere &a, const Sphere &b, const Sphere &c, const Sphere &d)
@@ -775,8 +737,6 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 	jq.computeError(original);
 	if (!upperPlane.valid)
 		jq.error = FLT_MAX;
-
-	joinedQuads.push_back(jq);
 }
 
 Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString)

@@ -82,10 +82,10 @@ namespace SM::Grid
 			int neibOpp{};
 
 			BumperQuad() = default;
-			BumperQuad(const FourSpheres& fs, int direction);
+			explicit BumperQuad(const FourSpheres& fs);
 
 		private:
-			std::vector<Plane> getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1);
+			void getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1);
 	};
 
 	struct CompositeBumper
@@ -267,6 +267,8 @@ namespace SM::Grid
 		AABB bbox;
 
 		std::vector<std::set<int>> gridWIP;
+
+		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& quad, int direction) const;
 
 		float projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 

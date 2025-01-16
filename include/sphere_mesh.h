@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <istream>
+#include <iostream>
 #include <unordered_map>
 
 #define MAX_GRID_BUMPERS 5
@@ -33,7 +34,7 @@ namespace SM {
 		float k {};
 
 		Plane() = default;
-        Plane(const glm::vec3& norm, float _k) : n(norm), k(_k) {}
+        Plane(const glm::vec3& norm, const float _k) : n(norm), k(_k) {}
 		Plane(const glm::vec3& dir, const glm::vec3& p) : n(glm::normalize(dir)) { setPoint(p); }
 
 		[[nodiscard]] bool isBehind(const glm::vec3& p) const { return glm::dot(n, p) < k; }
@@ -156,8 +157,6 @@ namespace SM {
 		std::vector<Prysmoid> prysmoids;
 		std::vector<Quadrilateral> quadrilaterals;
 
-		std::vector<FourSpheres> joinedQuads;
-
 		bool loadFromText(const char* text);
 		bool loadFromFile(const char* text);
 
@@ -224,5 +223,46 @@ namespace SM {
 	{
 		is >> plane.n.x >> plane.n.y >> plane.n.z >> plane.k;
 		return is;
+	}
+
+	inline Plane commonTangentPlane(const Sphere& s0, const Sphere& s1, const Sphere& s2, const Sphere& s3, int direction)
+	{
+		glm::vec3 a = s0.center;
+		glm::vec3 b = s1.center;
+		glm::vec3 c = s2.center;
+		glm::vec3 d = s3.center;
+
+		auto sign = static_cast<float>(direction);
+
+		auto n = glm::vec3(0);
+		glm::vec3 startN = n;
+
+		Plane p;
+
+		for (int i = 0; i < 1000; i++){
+			a = s0.center + n * s0.radius;
+			b = s1.center + n * s1.radius;
+			c = s2.center + n * s2.radius;
+			d = s3.center + n * s3.radius;
+
+			glm::vec3 new_n = glm::normalize(sign * glm::cross(a - c, b - d));
+			if (glm::dot(n, new_n) >= 0.999f)
+			{
+				if (glm::dot(startN, new_n) < 0)
+				{
+					std::cerr << "Degenerate Prysmoid detected (Normal flipped)" << std::endl;
+					p.valid = false;
+					return p;
+				}
+
+				p = {new_n, (a + b + c + d) / 4.0f};
+				return p;
+			}
+			n = new_n;
+		}
+
+		std::cerr << "Degenerate Prysmoid detected (Normal diverged)" << std::endl;
+		p.valid = false;
+		return p;
 	}
 }

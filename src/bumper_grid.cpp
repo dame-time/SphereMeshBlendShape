@@ -886,19 +886,59 @@ void BumperGrid::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<std
 	}
 }
 
+FourSpheres BumperGrid::computeFourSpheresFrom(const Quadrilateral& quad, int direction) const
+{
+	Sphere s0 = sphere[quad.indices[0]];
+	Sphere s1 = sphere[quad.indices[1]];
+	Sphere s2 = sphere[quad.indices[2]];
+	Sphere s3 = sphere[quad.indices[3]];
+
+	glm::vec3 diagonalAB = s0.center - s2.center;
+	glm::vec3 diagonalCD = s1.center - s3.center;
+	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+
+	Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
+
+	s0.center = midPlane.project(s0.center);
+	s1.center = midPlane.project(s1.center);
+	s2.center = midPlane.project(s2.center);
+	s3.center = midPlane.project(s3.center);
+
+	if (direction < 0) midPlane.flip();
+
+	Plane upperPlane = commonTangentPlane(s0, s1, s2, s3, direction);
+
+	s0.radius = glm::distance(s0.center, upperPlane.project(s0.center));
+	s1.radius = glm::distance(s1.center, upperPlane.project(s1.center));
+	s2.radius = glm::distance(s2.center, upperPlane.project(s2.center));
+	s3.radius = glm::distance(s3.center, upperPlane.project(s3.center));
+
+	FourSpheres original = {sphere[quad.indices[0]], sphere[quad.indices[1]], sphere[quad.indices[2]], sphere[quad.indices[3]]};
+	FourSpheres jq = {s0, s1, s2, s3};
+
+	jq.indices[0] = quad.indices[0];
+	jq.indices[1] = quad.indices[1];
+	jq.indices[2] = quad.indices[2];
+	jq.indices[3] = quad.indices[3];
+	jq.midPlane = midPlane;
+	jq.upperPlane = upperPlane;
+
+	jq.computeError(original);
+	if (!upperPlane.valid)
+		jq.error = FLT_MAX;
+
+	return jq;
+}
+
 void BumperGrid::initializeBumperQuads(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj)
 {
-	for (const FourSpheres &p : sm.joinedQuads)
+	for (const Quadrilateral& p : sm.quadrilaterals)
 	{
-		BumperQuad bqUpper = BumperQuad(
-			p,
-			1
-		);
+		FourSpheres upper = computeFourSpheresFrom(p, 1);
+		FourSpheres lower = computeFourSpheresFrom(p, -1);
 
-		BumperQuad bqLower = BumperQuad(
-			p,
-			-1
-		);
+		BumperQuad bqUpper = BumperQuad(upper);
+		BumperQuad bqLower = BumperQuad(lower);
 
 		BumperCapsuloid bc0 = BumperCapsuloid(
 			p.indices[0],
@@ -1362,12 +1402,12 @@ float BumperGrid::signedDistanceFromQuad(int bumperIndex, const glm::vec3 &p, gl
 	const Bumper& node = bumper[bumperIndex];
 	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
 
-	// if (bq.midPlane.isBehind(p)) return signedDistanceFromQuad(bq.neibOpp, p, closestPos, closestNorm);
+	if (bq.midPlane.isBehind(p)) return signedDistanceFromQuad(bq.neibOpp, p, closestPos, closestNorm);
 
-	// if (bq.sidePlanes[0].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[0], p, closestPos,  closestNorm);
-	// if (bq.sidePlanes[1].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[1], p, closestPos,  closestNorm);
-	// if (bq.sidePlanes[2].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[2], p, closestPos,  closestNorm);
-	// if (bq.sidePlanes[3].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[3], p, closestPos,  closestNorm);
+	if (bq.sidePlanes[0].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[0], p, closestPos,  closestNorm);
+	if (bq.sidePlanes[1].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[1], p, closestPos,  closestNorm);
+	if (bq.sidePlanes[2].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[2], p, closestPos,  closestNorm);
+	if (bq.sidePlanes[3].isBehind(p)) return signedDistanceFromCapsuloid(bq.neibSide[3], p, closestPos,  closestNorm);
 
 	closestNorm = bq.upperPlane.n;
 	closestPos = bq.upperPlane.project(p);
@@ -2118,29 +2158,24 @@ bool Bumper::operator == (const Bumper& bn) const
 }
 
 
-BumperQuad::BumperQuad(const FourSpheres &fs, int direction)
+BumperQuad::BumperQuad(const FourSpheres &fs)
 {
 	upperPlane = fs.upperPlane;
 	midPlane = fs.midPlane;
-
-	if (direction < 0)
-		midPlane.flip();
 
 	sphereIndex[0] = fs.indices[0];
 	sphereIndex[1] = fs.indices[1];
 	sphereIndex[2] = fs.indices[2];
 	sphereIndex[3] = fs.indices[3];
 
-	BumperPrysmoid bp = BumperPrysmoid(sphereIndex[0], sphereIndex[1], sphereIndex[2], fs.spheres[0], fs.spheres[1], fs.spheres[2], direction);
-	BumperPrysmoid bp1 = BumperPrysmoid(sphereIndex[2], sphereIndex[3], sphereIndex[0], fs.spheres[2], fs.spheres[3], fs.spheres[0], direction);
+	BumperPrysmoid bp = BumperPrysmoid(sphereIndex[0], sphereIndex[1], sphereIndex[2], fs.spheres[0], fs.spheres[1], fs.spheres[2], 1);
+	BumperPrysmoid bp1 = BumperPrysmoid(sphereIndex[0], sphereIndex[2], sphereIndex[3], fs.spheres[0], fs.spheres[2], fs.spheres[3], 1);
 
 	getSidePlanes(bp, bp1);
 }
 
-std::vector<Plane> BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const BumperPrysmoid &bp1)
+void BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const BumperPrysmoid &bp1)
 {
-	std::vector<Plane> res;
-
 	if (bp.m0 == bp1.m0)
 	{
 		sidePlanes[0] = bp.m1;
@@ -2204,8 +2239,6 @@ std::vector<Plane> BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const Bum
 		sidePlanes[2] = bp1.m0;
 		sidePlanes[3] = bp1.m1;
 	}
-
-	return res;
 }
 
 bool CompositeBumper::operator == (const CompositeBumper &bn) const
