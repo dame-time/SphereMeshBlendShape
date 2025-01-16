@@ -279,6 +279,7 @@ namespace SM::Grid
 
 		bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int bumperIndex)  const;
 		bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int bumperIndex, char flags = 0)  const;
+		bool pushOutsideQuad(glm::vec3& p, glm::vec3& n, int bumperIndex, char flags = 0)  const;
 		bool pushOutsideComposite(glm::vec3& p, glm::vec3 n, int bumperIndex) const;
 
 		[[nodiscard]] Sphere getInterpolatedSphere(const BumperCapsuloid& bc, float t) const;
