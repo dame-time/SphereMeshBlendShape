@@ -513,7 +513,7 @@ void BumperGrid::clearAllFlagsForTesting()
 		if (bumper[idx].shapeType == Bumper::COMPOSITE)
 		{
 			auto& cb = std::get<CompositeBumper>(bumper[idx].bumper);
-			for (char & flag : cb.flags)
+			for (short & flag : cb.flags)
 				flag = 0;
 		}
 	}
@@ -632,7 +632,7 @@ int BumperGrid::gridIndexOf(const std::set<int> &orig, int cellIdx)
 	clean = compressSiblings(clean);
 
 	int index = 0;
-	char flags = 0;
+	short flags = 0;
 	switch (clean.size())
 	{
 		case 0:
@@ -706,7 +706,7 @@ std::set<int> BumperGrid::compressSiblings (const std::set<int>& cell) const
 	return tmp;
 }
 
-char BumperGrid::computePrysmoidFlagsFromCell(const int element, const int cellIdx) const
+short BumperGrid::computePrysmoidFlagsFromCell(const int element, const int cellIdx) const
 {
 	constexpr int FLAG_IGNORE_SIDE_0 = 1 << 0;
 	constexpr int FLAG_IGNORE_SIDE_1 = 1 << 1;
@@ -717,7 +717,7 @@ char BumperGrid::computePrysmoidFlagsFromCell(const int element, const int cellI
 
 	if (bumper[element].shapeType != Bumper::PRYSMOID) return 0;
 
-	char flags = 0;
+	short flags = 0;
 	const auto bp = std::get<BumperPrysmoid>(bumper[element].bumper);
 	bp.m0.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_0 : 0;
 	bp.m1.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_1 : 0;
@@ -1120,8 +1120,8 @@ bool BumperGrid::pushOutsideCapsuloid(glm::vec3 &p, glm::vec3 &n, const int bump
 	return true;
 }
 
-char reverseBits(char b) {
-	char reversed = 0;
+short reverseBits(short b) {
+	short reversed = 0;
 	for (int i = 0; i < 8; ++i) {
 		if (b & (1 << i)) {
 			reversed |= (1 << (7 - i));
@@ -1130,7 +1130,7 @@ char reverseBits(char b) {
 	return reversed;
 }
 
-bool BumperGrid::pushOutsidePrysmoid(glm::vec3 &p, glm::vec3 &n, const int bumperIndex, const char flags) const
+bool BumperGrid::pushOutsidePrysmoid(glm::vec3 &p, glm::vec3 &n, const int bumperIndex, const short flags) const
 {
 #ifdef BOOK_KEEP
 	static int counter = 0;
@@ -1201,7 +1201,7 @@ bool BumperGrid::pushOutsidePrysmoid(glm::vec3 &p, glm::vec3 &n, const int bumpe
 	return true;
 }
 
-bool BumperGrid::pushOutsideQuad(glm::vec3 &p, glm::vec3 &n, int bumperIndex, char flags) const
+bool BumperGrid::pushOutsideQuad(glm::vec3 &p, glm::vec3 &n, int bumperIndex, short flags) const
 {
 	const Bumper& node = bumper[bumperIndex];
 	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
@@ -1720,7 +1720,7 @@ bool BumperGrid::pushOutsideGrid (glm::vec3 &p, glm::vec3 &n) const
 		return false;
 
 	constexpr int FLAGS_MASK = 0xF;
-	char flags = bumperAtPos & FLAGS_MASK;
+	short flags = bumperAtPos & FLAGS_MASK;
 	bumperAtPos >>= 4;
 
 	if (bumper[bumperAtPos].shapeType == Bumper::SPHERE)
@@ -1814,7 +1814,7 @@ std::string SpatialGrid::serialize() const
 			}
 
 			const int realIdx = lastIdx >> 4;
-			const char flags = lastIdx & 0xF;
+			const short flags = lastIdx & 0xF;
 
 			std::ostringstream hexStream;
 			hexStream << std::hex << std::uppercase << std::setw(1) << std::setfill('0') << static_cast<int>(flags);
@@ -1835,7 +1835,7 @@ std::string SpatialGrid::serialize() const
 	else
 	{
 		const int realIdx = lastIdx >> 4;
-		const char flags = lastIdx & 0xF;
+		const short flags = lastIdx & 0xF;
 
 		std::ostringstream hexStream;
 		hexStream << std::hex << std::uppercase << std::setw(1) << std::setfill('0') << static_cast<int>(flags);
@@ -1886,7 +1886,7 @@ void SpatialGrid::deserialize(const std::string& data)
 			if (pos != std::string::npos)
 			{
 				const int realIdx = std::stoi(idx.substr(0, pos)) - 1;
-				const char flags = std::stoi(idx.substr(pos + 1), nullptr, 16);
+				const short flags = std::stoi(idx.substr(pos + 1), nullptr, 16);
 
 				cells[position++] = (realIdx << 4) | flags;
 			}
@@ -2190,7 +2190,7 @@ std::string Bumper::serialize() const
 	return oss.str();
 }
 
-char BumperGrid::computePrysmoidFlagsFromSet(int i, const std::set<int> &set) const
+short BumperGrid::computePrysmoidFlagsFromSet(int i, const std::set<int> &set) const
 {
 	constexpr int FLAG_IGNORE_SIDE_0 = 1 << 0;
 	constexpr int FLAG_IGNORE_SIDE_1 = 1 << 1;
@@ -2213,7 +2213,7 @@ char BumperGrid::computePrysmoidFlagsFromSet(int i, const std::set<int> &set) co
 
 	const BumperPrysmoid bp = std::get<BumperPrysmoid>(bn.bumper);
 
-	char result = 0;
+	short result = 0;
 	if (!set.contains(bp.neibSide[0])) result |= FLAG_IGNORE_SIDE_0;
 	if (!set.contains(bp.neibSide[1])) result |= FLAG_IGNORE_SIDE_1;
 	if (!set.contains(bp.neibSide[2])) result |= FLAG_IGNORE_SIDE_2;
@@ -2285,7 +2285,7 @@ std::string CompositeBumper::serialize() const
 	for (int i = 0; i < MAX_GRID_BUMPERS; i ++)
 	{
 		const int bumperIdx = bumperIndices[i];
-		const char flag = flags[i];
+		const short flag = flags[i];
 
 		if (bumperIdx == -1)
 			break;

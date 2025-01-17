@@ -91,11 +91,11 @@ namespace SM::Grid
 	struct CompositeBumper
 	{
 		int bumperIndices[MAX_GRID_BUMPERS] {};
-		char flags[MAX_GRID_BUMPERS] {};
+		short flags[MAX_GRID_BUMPERS] {};
 
 		CompositeBumper()
 		{
-			for (char& flag : flags)
+			for (short& flag : flags)
 				flag = 0;
 
 			for (int& bumperIdx : bumperIndices)
@@ -209,13 +209,13 @@ namespace SM::Grid
 	friend class WIPGrid;
 	friend class SpatialGrid;
 	public:
-		const char IGNORE_OPP_SIDE_0 = 1 << 0;
-		const char IGNORE_OPP_SIDE_1 = 1 << 1;
-		const char IGNORE_OPP_SIDE_2 = 1 << 2;
-		const char IGNORE_OPP_PLANE = 1 << 3;
-		const char DONT_FOLLOW_SIDE_0 = 1 << 4;
-		const char DONT_FOLLOW_SIDE_1 = 1 << 5;
-		const char DONT_FOLLOW_SIDE_2 = 1 << 6;
+		const short IGNORE_OPP_SIDE_0 = 1 << 0;
+		const short IGNORE_OPP_SIDE_1 = 1 << 1;
+		const short IGNORE_OPP_SIDE_2 = 1 << 2;
+		const short IGNORE_OPP_PLANE = 1 << 3;
+		const short DONT_FOLLOW_SIDE_0 = 1 << 4;
+		const short DONT_FOLLOW_SIDE_1 = 1 << 5;
+		const short DONT_FOLLOW_SIDE_2 = 1 << 6;
 
 		std::vector<Bumper> bumper;
 		std::vector<Sphere> sphere;
@@ -278,8 +278,8 @@ namespace SM::Grid
 		bool pushOutsideSphere(glm::vec3& p, glm::vec3& n, const int& bumperIndex)  const;
 
 		bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int bumperIndex)  const;
-		bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int bumperIndex, char flags = 0)  const;
-		bool pushOutsideQuad(glm::vec3& p, glm::vec3& n, int bumperIndex, char flags = 0)  const;
+		bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int bumperIndex, short flags = 0)  const;
+		bool pushOutsideQuad(glm::vec3& p, glm::vec3& n, int bumperIndex, short flags = 0)  const;
 		bool pushOutsideComposite(glm::vec3& p, glm::vec3 n, int bumperIndex) const;
 
 		[[nodiscard]] Sphere getInterpolatedSphere(const BumperCapsuloid& bc, float t) const;
@@ -317,8 +317,8 @@ namespace SM::Grid
 
 		[[nodiscard]] std::set<int> compressChildren (const std::set<int>& cell) const;
 		[[nodiscard]] std::set<int> compressSiblings (const std::set<int>& cell) const;
-		[[nodiscard]] char computePrysmoidFlagsFromSet(int i, const std::set<int> &set) const;
-		[[nodiscard]] char computePrysmoidFlagsFromCell(int element, int cellIdx) const;
+		[[nodiscard]] short computePrysmoidFlagsFromSet(int i, const std::set<int> &set) const;
+		[[nodiscard]] short computePrysmoidFlagsFromCell(int element, int cellIdx) const;
 
 		[[nodiscard]] int gridIndexOf(const std::set<int>& orig, int cellIdx);
 		void computeFinalGrid();
