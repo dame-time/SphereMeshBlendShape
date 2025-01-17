@@ -217,6 +217,10 @@ namespace SM::Grid
 		const short DONT_FOLLOW_SIDE_1 = 1 << 5;
 		const short DONT_FOLLOW_SIDE_2 = 1 << 6;
 
+		// Used for quads only
+		const short IGNORE_OPP_SIDE_3 = 1 << 7;
+		const short DONT_FOLLOW_SIDE_3 = 1 << 8;
+
 		std::vector<Bumper> bumper;
 		std::vector<Sphere> sphere;
 		std::vector<GridSample> gridSamples;
@@ -309,7 +313,10 @@ namespace SM::Grid
 
 		std::vector<std::pair<Bumper, int>> sortCompositeIndices(CompositeBumper &cb);
 
-		void addDontFollowFlags(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>> &nodes, int i) const;
+		void addDontFollowFlagsPrysmoidToPrysmoid(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>> &nodes, int i) const;
+		void addDontFollowFlagsPrysmoidToQuad(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>> &nodes, int i) const;
+		void addDontFollowFlagsQuadToPrysmoid(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>> &nodes, int i) const;
+		void addDontFollowFlagsQuadToQuad(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>> &nodes, int i) const;
 
 		Bumper makeCompositeBumper(const std::set<int> &cell, const std::set<int> &clean, int cellIdx);
 		int makeOrFindCompositeBumper(const std::set<int>& orig, const std::set<int> &clean, int cellIdx);
@@ -319,6 +326,8 @@ namespace SM::Grid
 		[[nodiscard]] std::set<int> compressSiblings (const std::set<int>& cell) const;
 		[[nodiscard]] short computePrysmoidFlagsFromSet(int i, const std::set<int> &set) const;
 		[[nodiscard]] short computePrysmoidFlagsFromCell(int element, int cellIdx) const;
+		[[nodiscard]] short computeQuadFlagsFromSet(int i, const std::set<int> &set) const;
+		[[nodiscard]] short computeQuadFlagsFromCell(int element, int cellIdx) const;
 
 		[[nodiscard]] int gridIndexOf(const std::set<int>& orig, int cellIdx);
 		void computeFinalGrid();

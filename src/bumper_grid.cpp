@@ -543,7 +543,10 @@ std::vector<std::pair<Bumper, int>> BumperGrid::sortCompositeIndices(CompositeBu
 	return nodes;
 }
 
-void BumperGrid::addDontFollowFlags(CompositeBumper &cb, const std::vector<std::pair<Bumper, int>>& nodes, const int i) const
+void BumperGrid::addDontFollowFlagsPrysmoidToPrysmoid(CompositeBumper &cb,
+	const std::vector<std::pair<Bumper,
+	int>>& nodes,
+	const int i) const
 {
 	for (int j = i + 1; j < nodes.size(); j++)
 	{
@@ -565,18 +568,202 @@ void BumperGrid::addDontFollowFlags(CompositeBumper &cb, const std::vector<std::
 	}
 }
 
+void BumperGrid::addDontFollowFlagsPrysmoidToQuad(
+    CompositeBumper &cb,
+    const std::vector<std::pair<Bumper, int>>& nodes,
+    const int i) const
+{
+    for (int j = i + 1; j < nodes.size(); j++)
+    {
+        if (nodes[j].first.shapeType != Bumper::QUAD)
+            continue;
+
+        const BumperPrysmoid &bp1 = std::get<BumperPrysmoid>(nodes[i].first.bumper);
+        const BumperQuad &bq     = std::get<BumperQuad>(nodes[j].first.bumper);
+
+        auto &[v0_a, v1_a, v2_a] = bp1.sphereIndex;
+        auto &[v0_b, v1_b, v2_b, v3_b] = bq.sphereIndex;
+
+        std::array<int, 4> ring = { v0_b, v1_b, v2_b, v3_b };
+
+        auto edgesMatch = [](const int a, const int b, const int c, const int d) {
+            return (a == c && b == d) || (a == d && b == c);
+        };
+
+        // A helper that checks if a prysm side (p,q) matches ANY of the ring edges
+        auto sideMatchesQuadPerimeter = [&](const int p, const int q) {
+            // ring: (r[0]->r[1]), (r[1]->r[2]), (r[2]->r[3]), (r[3]->r[0])
+            for (int k = 0; k < 4; ++k)
+            {
+	            const int r0 = ring[k];
+	            const int r1 = ring[(k+1) % 4];
+                if (edgesMatch(p, q, r0, r1))
+                    return true;
+            }
+            return false;
+        };
+
+        if (sideMatchesQuadPerimeter(v1_a, v2_a))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_0;
+        if (sideMatchesQuadPerimeter(v0_a, v2_a))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_1;
+        if (sideMatchesQuadPerimeter(v0_a, v1_a))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_2;
+    }
+}
+
+void BumperGrid::addDontFollowFlagsQuadToPrysmoid(
+    CompositeBumper &cb,
+    const std::vector<std::pair<Bumper, int>> &nodes,
+    int i) const
+{
+    if (nodes[i].first.shapeType != Bumper::QUAD)
+        return;
+
+    const BumperQuad &bq = std::get<BumperQuad>(nodes[i].first.bumper);
+    auto &[v0_b, v1_b, v2_b, v3_b] = bq.sphereIndex;
+
+    std::array<int, 4> ring = { v0_b, v1_b, v2_b, v3_b };
+
+    auto edgesMatch = [](const int a, const int b, const int c, const int d) {
+        return (a == c && b == d) || (a == d && b == c);
+    };
+
+    for (int j = i + 1; j < static_cast<int>(nodes.size()); ++j)
+    {
+        if (nodes[j].first.shapeType != Bumper::PRYSMOID)
+            continue;
+
+        const BumperPrysmoid &bp = std::get<BumperPrysmoid>(nodes[j].first.bumper);
+        auto &[v0_a, v1_a, v2_a] = bp.sphereIndex;
+
+        std::array<std::pair<int,int>, 4> quadSides = {
+            std::make_pair(ring[0], ring[1]),
+            std::make_pair(ring[1], ring[2]),
+            std::make_pair(ring[2], ring[3]),
+            std::make_pair(ring[3], ring[0])
+        };
+
+        // A helper to check if any of the 3 prysm sides matches a specific Quad side
+        auto quadSideMatchesAnyPrysmoidSide = [&](int qb0, int qb1) {
+            // Compare (qb0, qb1) with each prysm side
+            if (edgesMatch(qb0, qb1, v1_a, v2_a)) return true;
+            if (edgesMatch(qb0, qb1, v0_a, v2_a)) return true;
+            if (edgesMatch(qb0, qb1, v0_a, v1_a)) return true;
+            return false;
+        };
+
+        if (quadSideMatchesAnyPrysmoidSide(quadSides[0].first, quadSides[0].second))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_0;
+        if (quadSideMatchesAnyPrysmoidSide(quadSides[1].first, quadSides[1].second))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_1;
+        if (quadSideMatchesAnyPrysmoidSide(quadSides[2].first, quadSides[2].second))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_2;
+        if (quadSideMatchesAnyPrysmoidSide(quadSides[3].first, quadSides[3].second))
+            cb.flags[i] |= DONT_FOLLOW_SIDE_3;
+    }
+}
+
+void BumperGrid::addDontFollowFlagsQuadToQuad(
+    CompositeBumper &cb,
+    const std::vector<std::pair<Bumper, int>> &nodes,
+    const int i) const
+{
+    if (nodes[i].first.shapeType != Bumper::QUAD)
+        return;
+
+    const BumperQuad &bq_i = std::get<BumperQuad>(nodes[i].first.bumper);
+    auto &[v0_i, v1_i, v2_i, v3_i] = bq_i.sphereIndex;
+
+    std::array<int, 4> ringI = { v0_i, v1_i, v2_i, v3_i };
+
+    std::array<std::pair<int,int>, 4> quadISides = {
+        std::make_pair(ringI[0], ringI[1]),
+        std::make_pair(ringI[1], ringI[2]),
+        std::make_pair(ringI[2], ringI[3]),
+        std::make_pair(ringI[3], ringI[0])
+    };
+
+    auto edgesMatch = [](const int a, const int b, const int c, const int d) {
+        return ((a == c && b == d) || (a == d && b == c));
+    };
+
+    for (int j = i + 1; j < static_cast<int>(nodes.size()); ++j)
+    {
+        if (nodes[j].first.shapeType != Bumper::QUAD)
+            continue;
+
+        const BumperQuad &bq_j = std::get<BumperQuad>(nodes[j].first.bumper);
+        auto &[v0_j, v1_j, v2_j, v3_j] = bq_j.sphereIndex;
+
+        std::array<int, 4> ringJ = { v0_j, v1_j, v2_j, v3_j };
+
+        std::array<std::pair<int,int>, 4> quadJSides = {
+            std::make_pair(ringJ[0], ringJ[1]),
+            std::make_pair(ringJ[1], ringJ[2]),
+            std::make_pair(ringJ[2], ringJ[3]),
+            std::make_pair(ringJ[3], ringJ[0])
+        };
+
+        for (auto &e : quadJSides)
+        {
+            if (edgesMatch(quadISides[0].first, quadISides[0].second,
+                           e.first, e.second))
+            {
+                cb.flags[i] |= DONT_FOLLOW_SIDE_0;
+                break;
+            }
+        }
+        for (auto &e : quadJSides)
+        {
+            if (edgesMatch(quadISides[1].first, quadISides[1].second,
+                           e.first, e.second))
+            {
+                cb.flags[i] |= DONT_FOLLOW_SIDE_1;
+                break;
+            }
+        }
+        for (auto &e : quadJSides)
+        {
+            if (edgesMatch(quadISides[2].first, quadISides[2].second,
+                           e.first, e.second))
+            {
+                cb.flags[i] |= DONT_FOLLOW_SIDE_2;
+                break;
+            }
+        }
+        for (auto &e : quadJSides)
+        {
+            if (edgesMatch(quadISides[3].first, quadISides[3].second,
+                           e.first, e.second))
+            {
+                cb.flags[i] |= DONT_FOLLOW_SIDE_3;
+                break;
+            }
+        }
+    }
+}
+
+
 void BumperGrid::processCompositeBumperFlags(CompositeBumper& cb, const std::set<int>& orig, int cellIdx)
 {
 	const std::vector<std::pair<Bumper, int>> nodes = sortCompositeIndices(cb);
 
 	for (int i = 0; i < nodes.size(); i++)
 	{
-		if (nodes[i].first.shapeType != Bumper::PRYSMOID)
-			continue;
-
-		cb.flags[i] = computePrysmoidFlagsFromSet(nodes[i].second, orig);
-		// cb.flags[i] = computePrysmoidFlagsFromCell(nodes[i].second, cellIdx);
-		addDontFollowFlags(cb, nodes, i);
+		if (nodes[i].first.shapeType == Bumper::PRYSMOID)
+		{
+			cb.flags[i] = computePrysmoidFlagsFromSet(nodes[i].second, orig);
+			// cb.flags[i] = computePrysmoidFlagsFromCell(nodes[i].second, cellIdx);
+			addDontFollowFlagsPrysmoidToPrysmoid(cb, nodes, i);
+			addDontFollowFlagsPrysmoidToQuad(cb, nodes, i);
+		}
+		else if (nodes[i].first.shapeType == Bumper::QUAD)
+		{
+			cb.flags[i] = computeQuadFlagsFromSet(nodes[i].second, orig);
+			addDontFollowFlagsQuadToPrysmoid(cb, nodes, i);
+			addDontFollowFlagsQuadToQuad(cb, nodes, i);
+		}
 	}
 
 	for (int i = 0; i < nodes.size(); i++)
@@ -625,7 +812,7 @@ void BumperGrid::computeFinalGrid()
 		grid.cells[i] = gridIndexOf(gridWIP[i], i);
 }
 
-int BumperGrid::gridIndexOf(const std::set<int> &orig, int cellIdx)
+int BumperGrid::gridIndexOf(const std::set<int> &orig, const int cellIdx)
 {
 	std::set<int> clean = orig;
 	clean = compressChildren(clean);
@@ -639,7 +826,7 @@ int BumperGrid::gridIndexOf(const std::set<int> &orig, int cellIdx)
 			return -1;
 		case 1:
 			index = *clean.begin();
-			flags = computePrysmoidFlagsFromSet(index, orig);
+			flags = computePrysmoidFlagsFromSet(index, orig) | computeQuadFlagsFromSet(index, orig);
 			// flags = computePrysmoidFlagsFromCell(index, cellIdx);
 			break;
 		default:
@@ -723,6 +910,64 @@ short BumperGrid::computePrysmoidFlagsFromCell(const int element, const int cell
 	bp.m1.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_1 : 0;
 	bp.m2.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_2 : 0;
 	bp.upperPlane.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_OPP : 0;
+
+	return flags;
+}
+
+short BumperGrid::computeQuadFlagsFromSet(const int i, const std::set<int> &set) const
+{
+	constexpr int FLAG_IGNORE_SIDE_0 = 1 << 0;
+	constexpr int FLAG_IGNORE_SIDE_1 = 1 << 1;
+	constexpr int FLAG_IGNORE_SIDE_2 = 1 << 2;
+	constexpr int FLAG_IGNORE_SIDE_3 = 1 << 7;
+	constexpr int FLAG_IGNORE_OPP = 1 << 3;
+
+	const Bumper bn = bumper[i];
+	if (bn.shapeType != Bumper::QUAD)
+		return 0;
+
+	std::set<int> tmp = set;
+	for (const int elem : set)
+		if (bumper[elem].shapeType == Bumper::QUAD)
+		{
+			const BumperQuad bq = std::get<BumperQuad>(bumper[elem].bumper);
+			tmp.insert(bq.neibSide[0]);
+			tmp.insert(bq.neibSide[1]);
+			tmp.insert(bq.neibSide[2]);
+			tmp.insert(bq.neibSide[3]);
+		}
+
+	const BumperQuad bq = std::get<BumperQuad>(bn.bumper);
+
+	short result = 0;
+	if (!set.contains(bq.neibSide[0])) result |= FLAG_IGNORE_SIDE_0;
+	if (!set.contains(bq.neibSide[1])) result |= FLAG_IGNORE_SIDE_1;
+	if (!set.contains(bq.neibSide[2])) result |= FLAG_IGNORE_SIDE_2;
+	if (!set.contains(bq.neibSide[3])) result |= FLAG_IGNORE_SIDE_3;
+	if (!set.contains(bq.neibOpp))	   result |= FLAG_IGNORE_OPP;
+
+	return result;
+}
+
+short BumperGrid::computeQuadFlagsFromCell(const int element, const int cellIdx) const
+{
+	constexpr int FLAG_IGNORE_SIDE_0 = 1 << 0;
+	constexpr int FLAG_IGNORE_SIDE_1 = 1 << 1;
+	constexpr int FLAG_IGNORE_SIDE_2 = 1 << 2;
+	constexpr int FLAG_IGNORE_SIDE_3 = 1 << 7;
+	constexpr int FLAG_IGNORE_OPP = 1 << 3;
+
+	const std::vector<glm::vec3> cellCoords = grid.getCellCorners(cellIdx);
+
+	if (bumper[element].shapeType != Bumper::QUAD) return 0;
+
+	short flags = 0;
+	const auto bq = std::get<BumperQuad>(bumper[element].bumper);
+	bq.sidePlanes[0].cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_0 : 0;
+	bq.sidePlanes[1].cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_1 : 0;
+	bq.sidePlanes[2].cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_2 : 0;
+	bq.sidePlanes[3].cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_SIDE_3 : 0;
+	bq.upperPlane.cellTest(cellCoords) == 1 ? flags |= FLAG_IGNORE_OPP : 0;
 
 	return flags;
 }
@@ -1201,7 +1446,7 @@ bool BumperGrid::pushOutsidePrysmoid(glm::vec3 &p, glm::vec3 &n, const int bumpe
 	return true;
 }
 
-bool BumperGrid::pushOutsideQuad(glm::vec3 &p, glm::vec3 &n, int bumperIndex, short flags) const
+bool BumperGrid::pushOutsideQuad(glm::vec3 &p, glm::vec3 &n, const int bumperIndex, const short flags) const
 {
 	const Bumper& node = bumper[bumperIndex];
 	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
@@ -1255,11 +1500,11 @@ bool BumperGrid::pushOutsideQuad(glm::vec3 &p, glm::vec3 &n, int bumperIndex, sh
 			return pushOutsideCapsuloid(p, n, bq.neibSide[2]);
 		}
 	}
-	if (!(flags & IGNORE_OPP_SIDE_2))
+	if (!(flags & IGNORE_OPP_SIDE_3))
 	{
 		if (bq.sidePlanes[3].isBehind(p))
 		{
-			if (flags & DONT_FOLLOW_SIDE_2)
+			if (flags & DONT_FOLLOW_SIDE_3)
 			{
 #ifdef BOOK_KEEP
 				counter++;
