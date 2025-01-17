@@ -77,14 +77,33 @@ namespace SM::Graph
 		explicit BumperSphere(const int sphereIndex) : sphereIndex(sphereIndex) {};
 	};
 
+	class BumperQuad
+	{
+	public:
+		Plane upperPlane {};
+		Plane midPlane {};
+		Plane sidePlanes[4] {};
+
+		int sphereIndex[4] {-1, -1, -1, -1};
+		int neibSide[4] {-1, -1, -1, -1};
+		int neibOpp{};
+
+		BumperQuad() = default;
+		explicit BumperQuad(const FourSpheres& fs);
+
+	private:
+		void getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1);
+	};
+
 	class Bumper {
 	public:
-		std::variant<BumperPrysmoid, BumperCapsuloid, BumperSphere> bumper;
+		std::variant<BumperPrysmoid, BumperCapsuloid, BumperSphere, BumperQuad> bumper;
 
 		enum {
 			SPHERE,
 			CAPSULOID,
 			PRYSMOID,
+			QUAD
 		} shapeType {};
 
 		[[nodiscard]] bool hasAParent() const;
@@ -118,11 +137,13 @@ namespace SM::Graph
 		bool pushOutsideSphere(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
+		bool pushOutsideQuad(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 
 		[[nodiscard]] Sphere getInterpolatedSphere(const BumperCapsuloid& bc, float t) const;
 		[[nodiscard]] float closestSphereOn(const glm::vec3& p, const BumperCapsuloid &bc) const;
 
 		[[nodiscard]] bool isPointOverPrysmoid(int bumperIndex, const glm::vec3& p) const;
+		[[nodiscard]] bool isPointOverQuad(int bumperIndex, const glm::vec3& p) const;
 
 		float signedDistanceFromSphere(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
 		closestNorm) const;
@@ -130,10 +151,13 @@ namespace SM::Graph
 		closestNorm) const;
 		float signedDistanceFromPrysmoid(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
 		closestNorm) const;
+		float signedDistanceFromQuad(int bumperIndex, const glm::vec3& p, glm::vec3& closestPos, glm::vec3&
+		closestNorm) const;
 
 		[[nodiscard]] std::pair<int, float> sampleSignedDistanceFromSphere(int bumperIndex, const glm::vec3& p) const;
 		[[nodiscard]] std::pair<int, float> sampleSignedDistanceFromCapsuloid(int bumperIndex, const glm::vec3& p) const;
 		[[nodiscard]] std::pair<int, float> sampleSignedDistanceFromPrysmoid(int bumperIndex, const glm::vec3& p) const;
+		[[nodiscard]] std::pair<int, float> sampleSignedDistanceFromQuad(int bumperIndex, const glm::vec3& p) const;
 
 		[[nodiscard]] std::pair<int, float> signedDistanceFromBumper(int i, const glm::vec3& p) const;
 		void sampleDistanceFromBumperWithPosition(const glm::vec<3, float> &p, int proposedIndex, glm::vec3 &closestPos) const;
@@ -141,8 +165,10 @@ namespace SM::Graph
 		void initializeBumperSpheres();
 		void initializeBumperCapsuloids(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
 		void initializeBumperPrysmoids(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
+		void initializeBumperQuads(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj);
 		void initializeBumperNodes(const SphereMesh &sm);
 
 		void sortByType();
+		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& quad, int direction) const;
 	};
 }
