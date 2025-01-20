@@ -544,8 +544,7 @@ std::vector<std::pair<Bumper, int>> BumperGrid::sortCompositeIndices(CompositeBu
 }
 
 void BumperGrid::addDontFollowFlagsPrysmoidToPrysmoid(CompositeBumper &cb,
-	const std::vector<std::pair<Bumper,
-	int>>& nodes,
+	const std::vector<std::pair<Bumper,int>>& nodes,
 	const int i) const
 {
 	for (int j = i + 1; j < nodes.size(); j++)

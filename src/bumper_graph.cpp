@@ -257,6 +257,9 @@ void BumperGraph::rotateY(const int angle)
 
 bool BumperGraph::pushOutside(glm::vec3 &p, glm::vec3 &n, int &bumperIndex) const
 {
+	if (bumperIndex == -1) return pushOutsideBruteForce(p, n, bumperIndex);
+
+	// TODO: Check the current bumperIndex, and all the neighbors or the current one
 	if (bumper[bumperIndex].shapeType == Bumper::SPHERE)	return pushOutsideSphere(p, n, bumperIndex);
 	if (bumper[bumperIndex].shapeType == Bumper::CAPSULOID) return pushOutsideCapsuloid(p, n, bumperIndex);
 	if (bumper[bumperIndex].shapeType == Bumper::PRYSMOID)	return pushOutsidePrysmoid(p, n, bumperIndex);
