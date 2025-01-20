@@ -240,8 +240,6 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2) const
 	}
 
     int a = ac[0], c = ac[1], b = bd[0], d = bd[1];
-	if (a > b) std::swap(a, b);
-	if (c > d) std::swap(c, d);
     return joinPrysmoids(p1, p2, a, b, c, d);
 }
 
