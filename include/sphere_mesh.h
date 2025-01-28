@@ -134,6 +134,9 @@ namespace SM {
             explicit FourSpheres(bool isFailed);
             FourSpheres(const Sphere& a, const Sphere& b, const Sphere& c, const Sphere& d);
 
+    		[[nodiscard]] Plane computeCommonTangentPlane(int direction) const;
+    		[[nodiscard]] Plane computeCommonMidPlane(int direction) const;
+
             void computeError(const FourSpheres& other);
 
 		private:

@@ -4,9 +4,12 @@
 #include <string>
 #include <algorithm>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "bumper_grid.h"
+
+#include "glm/gtx/string_cast.hpp"
 
 using namespace SM;
 using namespace SM::Grid;
@@ -186,21 +189,46 @@ void BumperGrid::sampleDistanceFromBumperWithPosition(const glm::vec<3, float> &
 		signedDistanceFromQuad(proposedIndex, p, closestPos, closestNorm);
 }
 
-void BumperGrid::createGridSamplesFrom (const std::vector<glm::vec3>& pos, const float skinThickness)
+void BumperGrid::createGridSamplesFrom(const std::vector<glm::vec3>& pos, const float skinThickness)
 {
 	gridSamples.clear();
+	std::unordered_map<int, int> pushedOutSpheres;
 	const float maxDistOffset = skinThickness;
 
-	for (auto& p : pos)
+	std::unordered_map<std::string, int> tmp;
+
+	// for (int i = 0; i < bumper.size(); i++)
+	// {
+	// 	if (bumper[i].shapeType != Bumper::QUAD) continue;
+	//
+	// 	std::vector<int> pushingOutSpheres;
+	// 	for (int j = 0; j < 4; j++)
+	// 	{
+	// 		int capsuleIdx = std::get<BumperQuad>(bumper[i].bumper).neibSide[j];
+	// 		const BumperCapsuloid& c = std::get<BumperCapsuloid>(bumper[capsuleIdx].bumper);
+	// 		pushingOutSpheres.push_back(c.neibExtreme[0]);
+	// 		pushingOutSpheres.push_back(c.neibExtreme[1]);
+	// 	}
+	//
+	// 	for (auto& i : pushingOutSpheres)
+	// 	{
+	// 		std::cout << i << " ";
+	// 	}
+	// 	std::cout << std::endl;
+	// }
+
+	for (const auto& p : pos)
 	{
 		int proposedIndex = -1;
 		float proposedDist = FLT_MAX;
 		glm::vec3 proposedDest = {};
 		bool rejected = false;
+
 		for (int i = 0; i < bumper.size(); i++)
 		{
-			// TODO: Ask this why the fuck it does not work proco dio maledetto
-			// if (bumper[i].hasAParent()) continue;
+			if (bumper[i].hasAParent()) continue;
+			// if (bumper[i].shapeType == Bumper::SPHERE) continue;
+			// if (bumper[i].shapeType != Bumper::CAPSULOID) continue;
 
 			auto [idx, dst] = signedDistanceFromBumper(i, p);
 
@@ -215,28 +243,59 @@ void BumperGrid::createGridSamplesFrom (const std::vector<glm::vec3>& pos, const
 		}
 
 		if (proposedIndex == -1 || rejected)
-			continue;
-
-		bool inside = false;
-		for (int i = 0; i < bumper.size(); i++)
 		{
-			// if (bumper[i].hasAParent()) continue;
-
-			auto [idx, dst] = signedDistanceFromBumper(i, proposedDest);
-
-			if (dst <= 0.0f)
-			{
-				inside = true;
-				break;
-			}
+			// auto [idx, dst] = signedDistanceFromBumper(25, p);
+			// if (dst <= 0.0f && dst >= -maxDistOffset && dst <= proposedDist)
+			// {
+			// 	std::cout << "Signed distance from bumper " << 25 << ": " << dst << ", Selected: "
+			// 	<< proposedIndex << " -> "
+			// 	<< proposedDist << " | isRej: "
+			// 	<< rejected << " point: "
+			// 	<< glm::to_string(p) << std::endl;
+			// 	auto [idx1, dst1] = signedDistanceFromBumper(30, p);
+			// 	std::cout << "Signed distance from bumper " << 30 << ": " << dst1 << " Index: " << idx1 << std::endl;
+			// 	auto [idx2, dst2] = signedDistanceFromBumper(31, p);
+			// 	std::cout << "Signed distance from bumper " << 31 << ": " << dst2 << " Index: " << idx2 << std::endl;
+			// }
+			continue;
 		}
 
-		if (!inside)
-			continue;
+		// bool inside = false;
+		// for (int i = 0; i < bumper.size(); i++)
+		// {
+		// 	if (bumper[i].hasAParent()) continue;
+		//
+		// 	auto [idx, dst] = signedDistanceFromBumper(i, proposedDest);
+		//
+		// 	if (dst <= 0.0f)
+		// 	{
+		// 		inside = true;
+		// 		break;
+		// 	}
+		// }
+		//
+		// if (!inside)
+		// 	continue;
+
+		if (bumper[proposedIndex].shapeType == Bumper::SPHERE)
+		{
+			if (!pushedOutSpheres.contains(proposedIndex)) pushedOutSpheres[proposedIndex] = 0;
+			pushedOutSpheres[proposedIndex] += 1;
+		}
 
 		gridSamples.push_back({proposedDest, proposedDest, proposedIndex});
 		gridSamples.push_back({p, proposedDest, proposedIndex});
+		tmp[glm::to_string(p)] = proposedIndex;
 	}
+
+	for (auto& i : pushedOutSpheres)
+		std::cout << i.first << ": " << i.second << " ";
+	std::cout << std::endl;
+	std::ofstream outFile("/Users/davidepaollilo/Workspaces/C++/SMToMeshFitter/assets/out_parent_push.txt");
+	if (!outFile.is_open()) std::cerr << "Error: could not open output.txt for writing.\n";
+	for (auto& i : tmp)
+		outFile << i.first << ": " << i.second << " shape: " << bumper[i.second].shapeType << std::endl;
+	outFile.close();
 }
 
 void BumperGrid::translate(const glm::vec3 &t)
@@ -1131,176 +1190,119 @@ void BumperGrid::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<std
 	}
 }
 
+Quadrilateral BumperGrid::reorderVerticesClockwise(const Quadrilateral& quad) const {
+	glm::vec3 v0 = sphere[quad.indices[0]].center;
+	glm::vec3 v1 = sphere[quad.indices[1]].center;
+	glm::vec3 v2 = sphere[quad.indices[2]].center;
+	glm::vec3 v3 = sphere[quad.indices[3]].center;
+
+	glm::vec3 diagonalAB = v0 - v2;
+	glm::vec3 diagonalCD = v1 - v3;
+
+	glm::vec3 normal = glm::cross(diagonalAB, diagonalCD);
+
+	// Compute center of the quad
+	glm::vec3 center = (v0 + v1 + v2 + v3) / 4.0f;
+
+	// Determine if the vertices are clockwise by comparing normal with center direction
+	if (glm::dot(normal, v0 - center) < 0.0f)
+		return {quad.indices[0], quad.indices[3], quad.indices[2], quad.indices[1]};
+
+	return quad;
+}
+
+// TODO: Check this shit
 FourSpheres BumperGrid::computeFourSpheresFrom(const Quadrilateral& quad, int direction) const
 {
-	Sphere s0 = sphere[quad.indices[0]];
-	Sphere s1 = sphere[quad.indices[1]];
-	Sphere s2 = sphere[quad.indices[2]];
-	Sphere s3 = sphere[quad.indices[3]];
+	// Quadrilateral quad = reorderVerticesClockwise(q);
+	const FourSpheres original = {sphere[quad.indices[0]], sphere[quad.indices[1]], sphere[quad.indices[2]], sphere[quad.indices[3]]};
+	FourSpheres jq = {sphere[quad.indices[0]], sphere[quad.indices[1]], sphere[quad.indices[2]], sphere[quad.indices[3]]};
 
-	glm::vec3 diagonalAB = s0.center - s2.center;
-	glm::vec3 diagonalCD = s1.center - s3.center;
-	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+	jq.midPlane = jq.computeCommonMidPlane(direction);
 
-	Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
+	jq.spheres[0].center = jq.midPlane.project(jq.spheres[0].center);
+	jq.spheres[1].center = jq.midPlane.project(jq.spheres[1].center);
+	jq.spheres[2].center = jq.midPlane.project(jq.spheres[2].center);
+	jq.spheres[3].center = jq.midPlane.project(jq.spheres[3].center);
 
-	s0.center = midPlane.project(s0.center);
-	s1.center = midPlane.project(s1.center);
-	s2.center = midPlane.project(s2.center);
-	s3.center = midPlane.project(s3.center);
+	jq.upperPlane = jq.computeCommonTangentPlane(direction);
 
-	if (direction < 0) midPlane.flip();
-
-	Plane upperPlane = commonTangentPlane(s0, s1, s2, s3, direction);
-
-	s0.radius = glm::distance(s0.center, upperPlane.project(s0.center));
-	s1.radius = glm::distance(s1.center, upperPlane.project(s1.center));
-	s2.radius = glm::distance(s2.center, upperPlane.project(s2.center));
-	s3.radius = glm::distance(s3.center, upperPlane.project(s3.center));
-
-	FourSpheres original = {sphere[quad.indices[0]], sphere[quad.indices[1]], sphere[quad.indices[2]], sphere[quad.indices[3]]};
-	FourSpheres jq = {s0, s1, s2, s3};
+	jq.spheres[0].radius = glm::abs(jq.upperPlane.distance(jq.spheres[0].center));
+	jq.spheres[1].radius = glm::abs(jq.upperPlane.distance(jq.spheres[1].center));
+	jq.spheres[2].radius = glm::abs(jq.upperPlane.distance(jq.spheres[2].center));
+	jq.spheres[3].radius = glm::abs(jq.upperPlane.distance(jq.spheres[3].center));
 
 	jq.indices[0] = quad.indices[0];
 	jq.indices[1] = quad.indices[1];
 	jq.indices[2] = quad.indices[2];
 	jq.indices[3] = quad.indices[3];
-	jq.midPlane = midPlane;
-	jq.upperPlane = upperPlane;
 
 	jq.computeError(original);
-	if (!upperPlane.valid)
-		jq.error = FLT_MAX;
+	if (!jq.upperPlane.valid) jq.error = FLT_MAX;
 
 	return jq;
 }
 
 void BumperGrid::initializeBumperQuads(const SphereMesh &sm, std::vector<std::vector<int>> &capsuloidAdj)
 {
-	for (const Quadrilateral& p : sm.quadrilaterals)
-	{
-		FourSpheres upper = computeFourSpheresFrom(p, 1);
-		FourSpheres lower = computeFourSpheresFrom(p, -1);
+    for (const Quadrilateral& p : sm.quadrilaterals)
+    {
+        FourSpheres upper = computeFourSpheresFrom(p, 1);
+        FourSpheres lower = computeFourSpheresFrom(p, -1);
 
-		BumperQuad bqUpper = BumperQuad(upper);
-		BumperQuad bqLower = BumperQuad(lower);
+        BumperQuad bqUpper = BumperQuad(upper, 1);
+        BumperQuad bqLower = BumperQuad(lower, -1);
+        std::vector<BumperCapsuloid> capsuloids = {
+            BumperCapsuloid(p.indices[0], p.indices[1], sphere[p.indices[0]], sphere[p.indices[1]]),
+            BumperCapsuloid(p.indices[1], p.indices[2], sphere[p.indices[1]], sphere[p.indices[2]]),
+            BumperCapsuloid(p.indices[2], p.indices[3], sphere[p.indices[2]], sphere[p.indices[3]]),
+            BumperCapsuloid(p.indices[3], p.indices[0], sphere[p.indices[3]], sphere[p.indices[0]])
+        };
 
-		BumperCapsuloid bc0 = BumperCapsuloid(
-			p.indices[0],
-			p.indices[1],
-			sphere[p.indices[0]],
-			sphere[p.indices[1]]);
+        Bumper nodeUpper{};
+        nodeUpper.shapeType = Bumper::QUAD;
+        bqUpper.neibOpp = bumper.size() + 1;
+        nodeUpper.bumper = bqUpper;
 
-		BumperCapsuloid bc1 = BumperCapsuloid(
-			p.indices[1],
-			p.indices[2],
-			sphere[p.indices[1]],
-			sphere[p.indices[2]]);
+        Bumper nodeLower{};
+        nodeLower.shapeType = Bumper::QUAD;
+        bqLower.neibOpp = bumper.size();
+        nodeLower.bumper = bqLower;
 
-		BumperCapsuloid bc2 = BumperCapsuloid(
-			p.indices[2],
-			p.indices[3],
-			sphere[p.indices[2]],
-			sphere[p.indices[3]]);
+        bumper.push_back(nodeUpper);
+        bumper.push_back(nodeLower);
 
-		BumperCapsuloid bc3 = BumperCapsuloid(
-			p.indices[3],
-			p.indices[0],
-			sphere[p.indices[3]],
-			sphere[p.indices[0]]);
+        int upperIndex = bumper.size() - 2;
+        int lowerIndex = bumper.size() - 1;
 
-		Bumper nodeUpper {};
-		nodeUpper.shapeType = Bumper::QUAD;
-		bqUpper.neibOpp = bumper.size() + 1;
-		nodeUpper.bumper = bqUpper;
+        // Iterate over each edge to assign capsuloids and neighbors
+        for (int edge = 0; edge < 4; ++edge)
+        {
+            int idx1 = p.indices[edge];
+            int idx2 = p.indices[(edge + 1) % 4];
 
-		Bumper nodeLower {};
-		nodeLower.shapeType = Bumper::QUAD;
-		bqLower.neibOpp = bumper.size();
-		nodeLower.bumper = bqLower;
+            if (capsuloidAdj[idx1][idx2] == -1 || capsuloidAdj[idx2][idx1] == -1)
+            {
+                capsuloidAdj[idx1][idx2] = bumper.size();
+                capsuloidAdj[idx2][idx1] = bumper.size();
 
-		Bumper edge0 {};
-		edge0.shapeType = Bumper::CAPSULOID;
-		bc0.neibExtreme[0] = p.indices[0];
-		bc0.neibExtreme[1] = p.indices[1];
-		edge0.bumper = bc0;
+                Bumper edgeBumper{};
+                edgeBumper.shapeType = Bumper::CAPSULOID;
+                capsuloids[edge].neibExtreme[0] = idx1;
+                capsuloids[edge].neibExtreme[1] = idx2;
+                edgeBumper.bumper = capsuloids[edge];
 
-		Bumper edge3 {};
-		edge3.shapeType = Bumper::CAPSULOID;
-		bc3.neibExtreme[0] = p.indices[3];
-		bc3.neibExtreme[1] = p.indices[0];
-		edge3.bumper = bc3;
+                bumper.push_back(edgeBumper);
+            }
 
-		Bumper edge1 {};
-		edge1.shapeType = Bumper::CAPSULOID;
-		bc1.neibExtreme[0] = p.indices[1];
-		bc1.neibExtreme[1] = p.indices[2];
-		edge1.bumper = bc1;
+            int idx = capsuloidAdj[idx1][idx2];
 
-		Bumper edge2 {};
-		edge2.shapeType = Bumper::CAPSULOID;
-		bc2.neibExtreme[0] = p.indices[2];
-		bc2.neibExtreme[1] = p.indices[3];
-		edge2.bumper = bc2;
+            std::get<BumperCapsuloid>(bumper[idx].bumper).hasFather = true;
 
-		bumper.push_back(nodeUpper);
-		bumper.push_back(nodeLower);
-
-		int upperIndex = bumper.size() - 2;
-		int lowerIndex = bumper.size() - 1;
-
-		if (capsuloidAdj[p.indices[0]][p.indices[1]] == -1 || capsuloidAdj[p.indices[1]][p.indices[0]] == -1)
-		{
-			capsuloidAdj[p.indices[0]][p.indices[1]] = bumper.size();
-			capsuloidAdj[p.indices[1]][p.indices[0]] = bumper.size();
-
-			bumper.push_back(edge0);
-		}
-
-		int idx = capsuloidAdj[p.indices[0]][p.indices[1]];
-
-		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[0] = idx;
-		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[0] = idx;
-
-		if (capsuloidAdj[p.indices[1]][p.indices[2]] == -1 || capsuloidAdj[p.indices[2]][p.indices[1]] == -1)
-		{
-			capsuloidAdj[p.indices[1]][p.indices[2]] = bumper.size();
-			capsuloidAdj[p.indices[2]][p.indices[1]] = bumper.size();
-
-			bumper.push_back(edge1);
-		}
-
-		idx = capsuloidAdj[p.indices[1]][p.indices[2]];
-
-		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[1] = idx;
-		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[1] = idx;
-
-		if (capsuloidAdj[p.indices[2]][p.indices[3]] == -1 || capsuloidAdj[p.indices[3]][p.indices[2]] == -1)
-		{
-			capsuloidAdj[p.indices[2]][p.indices[3]] = bumper.size();
-			capsuloidAdj[p.indices[3]][p.indices[2]] = bumper.size();
-
-			bumper.push_back(edge2);
-		}
-
-		idx = capsuloidAdj[p.indices[2]][p.indices[3]];
-
-		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[2] = idx;
-		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[2] = idx;
-
-		if (capsuloidAdj[p.indices[3]][p.indices[0]] == -1 || capsuloidAdj[p.indices[0]][p.indices[3]] == -1)
-		{
-			capsuloidAdj[p.indices[3]][p.indices[0]] = bumper.size();
-			capsuloidAdj[p.indices[0]][p.indices[3]] = bumper.size();
-
-			bumper.push_back(edge3);
-		}
-
-		idx = capsuloidAdj[p.indices[3]][p.indices[0]];
-
-		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[3] = idx;
-		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[3] = idx;
-	}
+            std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[edge] = idx;
+            std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[edge] = idx;
+        }
+    }
 }
 
 void BumperGrid::initializeBumperNodes(const SphereMesh &sm)
@@ -1609,6 +1611,12 @@ closestNorm) const
 	const BumperCapsuloid bc = std::get<BumperCapsuloid>(node.bumper);
 
 	const float t = closestSphereOn(p, bc);
+
+	if (t == 0)
+		return signedDistanceFromSphere(bc.neibExtreme[0], p, closestPos, closestNorm);
+	if (t == bc.dLength)
+		return signedDistanceFromSphere(bc.neibExtreme[1], p, closestPos, closestNorm);
+
 	const Sphere s = getInterpolatedSphere(bc, t);
 	const float dist = glm::distance(p, s.center);
 
@@ -1772,8 +1780,7 @@ std::pair<int, float> BumperGrid::sampleSignedDistanceFromPrysmoid (int bumperIn
 	const Bumper& node = bumper[bumperIndex];
 	const BumperPrysmoid bp = std::get<BumperPrysmoid>(node.bumper);
 
-	if (bp.midPlane.isBehind(p))
-		return {-1, FLT_MAX};
+	if (bp.midPlane.isBehind(p)) return {-1, FLT_MAX};
 
 	if (bp.m1.isBehind(p)) return sampleSignedDistanceFromCapsuloid(bp.neibSide[1], p);
 	if (bp.m2.isBehind(p)) return sampleSignedDistanceFromCapsuloid(bp.neibSide[2], p);
@@ -1787,13 +1794,100 @@ std::pair<int, float> BumperGrid::sampleSignedDistanceFromQuad(int bumperIndex, 
 	const Bumper& node = bumper[bumperIndex];
 	const BumperQuad bq = std::get<BumperQuad>(node.bumper);
 
-	if (bq.midPlane.isBehind(p))
-		return {-1, FLT_MAX};
+	if (bq.midPlane.isBehind(p)) return {-1, FLT_MAX};
 
-	if (bq.sidePlanes[0].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
-	if (bq.sidePlanes[1].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[1], p);
-	if (bq.sidePlanes[2].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[2], p);
-	if (bq.sidePlanes[3].isBehind(p)) return sampleSignedDistanceFromCapsuloid(bq.neibSide[3], p);
+	std::vector<bool> sideUp(4, false);
+	std::vector<float> dists(4, FLT_MAX);
+	std::vector<int> sideIdx(4, -1);
+	if (bq.sidePlanes[0].isBehind(p))
+	{
+		sideUp[0] = true;
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
+		sideIdx[0] = tmp.first;
+		dists[0] = tmp.second;
+	}
+	if (bq.sidePlanes[1].isBehind(p))
+	{
+		sideUp[1] = true;
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[1], p);
+		sideIdx[1] = tmp.first;
+		dists[1] = tmp.second;
+	}
+	if (bq.sidePlanes[2].isBehind(p))
+	{
+		sideUp[2] = true;
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[2], p);
+		sideIdx[2] = tmp.first;
+		dists[2] = tmp.second;
+	}
+	if (bq.sidePlanes[3].isBehind(p))
+	{
+		sideUp[3] = true;
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[3], p);
+		sideIdx[3] = tmp.first;
+		dists[3] = tmp.second;
+	}
+
+	int counter = 0;
+	std::set<int> pushers;
+	for (int i = 0; i < 4; ++i)
+		if (sideUp[i] && dists[i] <= 0)
+		{
+			++counter;
+			pushers.insert(sideIdx[i]);
+		}
+
+	if (counter >= 2 && pushers.size() >= 2)
+	{
+		std::cout << "++++++++++++++++++++" << std::endl;
+		std::cout << "Quad: " << bumperIndex << std::endl;
+		std::cout << "Point: " << p.x << " " << p.y << " " << p.z << std::endl;
+		std::cout << "Behind " << counter << " sides." << std::endl;
+		std::vector<int> sides;
+		for (int i = 0; i < 4; ++i)
+			if (sideUp[i] && dists[i] <= 0)
+			{
+				std::cout << "Side " << i << " dist: " << dists[i] << std::endl;
+				sides.push_back(i);
+				std::cout << "Plane: " << bq.sidePlanes[i].n.x << " " << bq.sidePlanes[i].n.y << " " << bq.sidePlanes[i].n.z << " " << bq.sidePlanes[i].k << std::endl;
+				std::cout << "Pusher: " << sideIdx[i] << std::endl;
+				std::cout << "Pusher type: " << bumper[sideIdx[i]].shapeType << std::endl;
+			}
+		std::cout << "Capusles: " << bq.neibSide[0] << ", " << bq.neibSide[3] << std::endl;
+		for (auto& s : sides)
+			std::cout << s << " ";
+		if (std::find(sides.begin(), sides.end(), 0) == sides.end())
+			assert(false);
+		if (std::find(sides.begin(), sides.end(), 3) == sides.end())
+			assert(false);
+		std::cout << std::endl;
+		std::cout << "--------------------" << std::endl;
+	}
+
+	if (bq.sidePlanes[0].isBehind(p))
+	{
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
+		auto tmp1 = sampleSignedDistanceFromCapsuloid(bq.neibSide[3], p);
+		return tmp.second < tmp1.second ? tmp : tmp1;
+	}
+	if (bq.sidePlanes[1].isBehind(p))
+	{
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
+		auto tmp1 = sampleSignedDistanceFromCapsuloid(bq.neibSide[1], p);
+		return tmp.second < tmp1.second ? tmp : tmp1;
+	}
+	if (bq.sidePlanes[2].isBehind(p))
+	{
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[1], p);
+		auto tmp1 = sampleSignedDistanceFromCapsuloid(bq.neibSide[2], p);
+		return tmp.second < tmp1.second ? tmp : tmp1;
+	}
+	if (bq.sidePlanes[3].isBehind(p))
+	{
+		auto tmp = sampleSignedDistanceFromCapsuloid(bq.neibSide[0], p);
+		auto tmp1 = sampleSignedDistanceFromCapsuloid(bq.neibSide[3], p);
+		return tmp.second < tmp1.second ? tmp : tmp1;
+	}
 
 	return {bumperIndex, bq.upperPlane.distance(p)};
 }
@@ -2483,7 +2577,7 @@ bool Bumper::operator == (const Bumper& bn) const
 }
 
 
-BumperQuad::BumperQuad(const FourSpheres &fs)
+BumperQuad::BumperQuad(const FourSpheres &fs, int direction)
 {
 	upperPlane = fs.upperPlane;
 	midPlane = fs.midPlane;
@@ -2493,13 +2587,13 @@ BumperQuad::BumperQuad(const FourSpheres &fs)
 	sphereIndex[2] = fs.indices[2];
 	sphereIndex[3] = fs.indices[3];
 
-	BumperPrysmoid bp = BumperPrysmoid(sphereIndex[0], sphereIndex[1], sphereIndex[2], fs.spheres[0], fs.spheres[1], fs.spheres[2], 1);
-	BumperPrysmoid bp1 = BumperPrysmoid(sphereIndex[0], sphereIndex[2], sphereIndex[3], fs.spheres[0], fs.spheres[2], fs.spheres[3], 1);
+	BumperPrysmoid bp = BumperPrysmoid(sphereIndex[0], sphereIndex[1], sphereIndex[2], fs.spheres[0], fs.spheres[1], fs.spheres[2], direction);
+	BumperPrysmoid bp1 = BumperPrysmoid(sphereIndex[0], sphereIndex[2], sphereIndex[3], fs.spheres[0], fs.spheres[2], fs.spheres[3], direction);
 
-	getSidePlanes(bp, bp1);
+	getSidePlanes(bp, bp1, direction);
 }
 
-void BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const BumperPrysmoid &bp1)
+void BumperQuad::getSidePlanes(const BumperPrysmoid &bp, const BumperPrysmoid &bp1, int direction)
 {
 	sidePlanes[0] = bp.m2;
 	sidePlanes[1] = bp.m0;

@@ -2,6 +2,7 @@
 
 #include <variant>
 #include <set>
+#include <unordered_map>
 
 #include "sphere_mesh.h"
 
@@ -82,10 +83,10 @@ namespace SM::Grid
 			int neibOpp{};
 
 			BumperQuad() = default;
-			explicit BumperQuad(const FourSpheres& fs);
+			explicit BumperQuad(const FourSpheres& fs, int direction);
 
 		private:
-			void getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1);
+			void getSidePlanes(const BumperPrysmoid& bp, const BumperPrysmoid& bp1, int direction);
 	};
 
 	struct CompositeBumper
@@ -263,6 +264,11 @@ namespace SM::Grid
 		void printFlagsStat() const;
 		[[nodiscard]] int parentOf(int i) const;
 		void compareGrids(const BumperGrid &bg1) const;
+		void collectQuadGeometry(int bumperIndex, std::vector<glm::vec3>& outVertices,
+			std::vector<glm::vec3>& outNormals, std::vector<glm::vec3>& outColors) const;
+		void renderQuad(int bumperIndex) const;
+		void renderAllQuads() const;
+		[[nodiscard]] std::vector<int> getQuadIndices() const;
 #endif
 
 	private:
@@ -272,7 +278,8 @@ namespace SM::Grid
 
 		std::vector<std::set<int>> gridWIP;
 
-		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& quad, int direction) const;
+		[[nodiscard]] Quadrilateral reorderVerticesClockwise(const Quadrilateral& quad) const;
+		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& q, int direction) const;
 
 		float projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 

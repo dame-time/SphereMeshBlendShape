@@ -240,6 +240,8 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2) const
 	}
 
     int a = ac[0], c = ac[1], b = bd[0], d = bd[1];
+	if (a < c) std::swap(a, c);
+	if (b < d) std::swap(b, d);
     return joinPrysmoids(p1, p2, a, b, c, d);
 }
 
@@ -565,6 +567,61 @@ void FourSpheres::sortIndices()
 	}
 }
 
+Plane FourSpheres::computeCommonTangentPlane(int direction) const
+{
+	glm::vec3 a = spheres[0].center;
+	glm::vec3 b = spheres[1].center;
+	glm::vec3 c = spheres[2].center;
+	glm::vec3 d = spheres[3].center;
+
+	auto sign = static_cast<float>(direction);
+
+	auto n = glm::vec3(0);
+	glm::vec3 startN = n;
+
+	Plane p;
+
+	for (int i = 0; i < 1000; i++){
+		a = spheres[0].center + n * spheres[0].radius;
+		b = spheres[1].center + n * spheres[1].radius;
+		c = spheres[2].center + n * spheres[2].radius;
+		d = spheres[3].center + n * spheres[3].radius;
+
+		glm::vec3 new_n = glm::normalize(sign * glm::cross(a - c, b - d));
+		if (glm::dot(n, new_n) >= 0.999f)
+		{
+			if (glm::dot(startN, new_n) < 0)
+			{
+				std::cerr << "Degenerate Prysmoid detected (Normal flipped)" << std::endl;
+				p.valid = false;
+				return p;
+			}
+
+			p = {new_n, (a + b + c + d) / 4.0f};
+			return p;
+		}
+		n = new_n;
+	}
+
+	std::cerr << "Degenerate Prysmoid detected (Normal diverged)" << std::endl;
+	p.valid = false;
+
+	return p;
+}
+
+Plane FourSpheres::computeCommonMidPlane(int direction) const
+{
+	glm::vec3 diagonalAB = spheres[0].center - spheres[2].center;
+	glm::vec3 diagonalCD = spheres[1].center - spheres[3].center;
+	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+
+	Plane mp = {midPlaneNormal, (spheres[0].center + spheres[1].center + spheres[2].center + spheres[3].center) / 4.0f};
+
+	if (direction < 0) mp.flip();
+
+	return mp;
+}
+
 bool SphereMesh::loadFromText(const char *text)
 {
 	std::stringstream inputFile(text);
@@ -699,6 +756,11 @@ Prysmoid SphereMesh::extractPrysmoidFromString(const std::string &prysmoidString
 	return prysmoid;
 }
 
+glm::vec3 getTriNormal(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
+{
+	return cross(b - a, c - a);
+}
+
 void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 {
 	Sphere s0 = spheres[quad.indices[0]];
@@ -734,7 +796,20 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 	jq.midPlane = midPlane;
 	jq.upperPlane = upperPlane;
 
+	glm::vec3 n0 = getTriNormal(s1.center, s2.center, s3.center);
+	glm::vec3 n1 = getTriNormal(s0.center, s2.center, s3.center);
+	glm::vec3 n2 = getTriNormal(s0.center, s1.center, s3.center);
+	glm::vec3 n3 = getTriNormal(s0.center, s1.center, s2.center);
+
 	jq.computeError(original);
+
+	bool checkN0 = glm::dot(midPlane.n, n0) < 0;
+	bool checkN1 = glm::dot(midPlane.n, n1) < 0;
+	bool checkN2 = glm::dot(midPlane.n, n2) < 0;
+	bool checkN3 = glm::dot(midPlane.n, n3) < 0;
+	if (!checkN0 || !checkN1 || !checkN2 || !checkN3)
+		jq.error = FLT_MAX;
+
 	if (!upperPlane.valid)
 		jq.error = FLT_MAX;
 }
