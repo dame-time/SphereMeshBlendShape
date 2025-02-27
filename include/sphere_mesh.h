@@ -209,14 +209,14 @@ namespace SM {
 		void removeDegenerateElements();
 		void removeRedundantElements();
 
-        bool checkPrysmEdgesAgainstQuadDiagonal(int s1, int s2) const;
+        [[nodiscard]] bool checkPrysmEdgesAgainstQuadDiagonal(int s1, int s2) const;
 
 		static Sphere extractSphereFromString(const std::string &sphereString);
 		static Capsuloid extractCapsuloidFromString(const std::string &capsuloidString);
 		static Prysmoid extractPrysmoidFromString(const std::string &prysmoidString);
-		Quadrilateral extractQuadFromString(const std::string &quadString) const;
+		[[nodiscard]] Quadrilateral extractQuadFromString(const std::string &quadString);
 
-		void computeFourSpheresFrom(const Quadrilateral& quad) const;
+		void computeFourSpheresFrom(const Quadrilateral& quad);
 	};
 
 	// TODO: implement this class

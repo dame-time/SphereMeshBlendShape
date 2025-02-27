@@ -307,18 +307,6 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
     return jq;
 }
 
-void printSphere(const Sphere& s)
-{
-    std::cerr << "Sphere : "
-              << s.center.x
-              << ", "
-              << s.center.y
-              << ", "
-              << s.center.z
-              << ", "
-              << s.radius << std::endl;
-}
-
 bool SphereMesh::generateQuadrilateral(const float threshold)
 {
     const auto pq = findJoinableQuadrilaterals();
@@ -859,7 +847,7 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
     }
 }
 
-Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString) const
+Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString)
 {
 	std::string s = quadString;
 
