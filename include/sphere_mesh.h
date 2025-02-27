@@ -192,7 +192,7 @@ namespace SM {
 		void scale (float s);
 		void rotateY (int angle);
 
-		void printf() const;
+        void printf() const;
 
 	private:
         std::unordered_map<int, std::vector<int>> quadsSpheres;
@@ -204,6 +204,8 @@ namespace SM {
 
 		void removeDegenerateElements();
 		void removeRedundantElements();
+
+        bool checkPrysmEdgesAgainstQuadDiagonal(int s1, int s2) const;
 
 		static Sphere extractSphereFromString(const std::string &sphereString);
 		static Capsuloid extractCapsuloidFromString(const std::string &s);

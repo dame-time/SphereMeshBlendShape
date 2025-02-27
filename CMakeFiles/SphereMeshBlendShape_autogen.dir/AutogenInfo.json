@@ -1,0 +1,121 @@
+{
+	"BUILD_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/SphereMeshBlendShape_autogen",
+	"CMAKE_BINARY_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker",
+	"CMAKE_CURRENT_BINARY_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape",
+	"CMAKE_EXECUTABLE" : "/Applications/CMake.app/Contents/bin/cmake",
+	"CMAKE_LIST_FILES" : 
+	[
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/CMakeLists.txt",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/.qtc/package-manager/auto-setup.cmake",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/CMakeFiles/3.23.1/CMakeCCompiler.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/CMakeCInformation.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/CMakeLanguageInformation.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/Compiler/AppleClang-C.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/Compiler/Clang.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/Platform/Apple-AppleClang-C.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/Platform/Apple-Clang-C.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/Platform/Apple-Clang.cmake",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/CMakeCommonLanguageInclude.cmake"
+	],
+	"CMAKE_SOURCE_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker",
+	"DEP_FILE" : "",
+	"DEP_FILE_RULE_NAME" : "",
+	"HEADERS" : 
+	[
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/include/bumper_graph.h",
+			"MU",
+			"6YEA5652QU/moc_bumper_graph.cpp",
+			null
+		],
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/include/bumper_grid.h",
+			"MU",
+			"6YEA5652QU/moc_bumper_grid.cpp",
+			null
+		],
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/include/sphere_mesh.h",
+			"MU",
+			"6YEA5652QU/moc_sphere_mesh.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/SphereMeshBlendShape_autogen/include",
+	"MOC_COMPILATION_FILE" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/SphereMeshBlendShape_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : [],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/eigen",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/libigl/include",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/assimp/include",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/include",
+		"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/glm",
+		"/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1",
+		"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include",
+		"/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include",
+		"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT",
+		"Q_GADGET_EXPORT",
+		"Q_ENUM_NS"
+	],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++",
+		"-dM",
+		"-E",
+		"-c",
+		"/Applications/CMake.app/Contents/share/cmake-3.23/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/SphereMeshBlendShape_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 8,
+	"PARSE_CACHE_FILE" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/CMakeFiles/SphereMeshBlendShape_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/local/share/qt/libexec/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/local/share/qt/libexec/uic",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 8,
+	"SETTINGS_FILE" : "/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/CMakeFiles/SphereMeshBlendShape_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/src/bumper_graph.cpp",
+			"MU",
+			null
+		],
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/src/bumper_grid.cpp",
+			"MU",
+			null
+		],
+		[
+			"/Users/davidepaollilo/Workspaces/C++/SphereMeshTweaker/external/SphereMeshBlendShape/src/sphere_mesh.cpp",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"VERBOSITY" : 0
+}

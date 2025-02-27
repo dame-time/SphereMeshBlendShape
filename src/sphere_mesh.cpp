@@ -32,6 +32,11 @@
 
 using namespace SM;
 
+glm::vec3 getTriNormal(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
+{
+    return cross(b - a, c - a);
+}
+
 void SphereMesh::updateBBox ()
 {
 	bbox.minCorner = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -240,7 +245,7 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2) const
 	}
 
     int a = ac[0], c = ac[1], b = bd[0], d = bd[1];
-	if (a < c) std::swap(a, c);
+    if (a > c) std::swap(a, c);
 	if (b < d) std::swap(b, d);
     return joinPrysmoids(p1, p2, a, b, c, d);
 }
@@ -283,10 +288,35 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
     jq.upperPlane = upperPlane;
 
     jq.computeError(original);
+
+    glm::vec3 n0 = getTriNormal(s1.center, s2.center, s3.center);
+    glm::vec3 n1 = getTriNormal(s0.center, s2.center, s3.center);
+    glm::vec3 n2 = getTriNormal(s0.center, s1.center, s3.center);
+    glm::vec3 n3 = getTriNormal(s0.center, s1.center, s2.center);
+
+    bool checkN0 = glm::dot(midPlane.n, n0) <= 0;
+    bool checkN1 = glm::dot(midPlane.n, n1) <= 0;
+    bool checkN2 = glm::dot(midPlane.n, n2) <= 0;
+    bool checkN3 = glm::dot(midPlane.n, n3) <= 0;
+    if (checkN0 || checkN1 || checkN2 || checkN3)
+        jq.error = FLT_MAX;
+
     if (!upperPlane.valid)
         jq.error = FLT_MAX;
 
     return jq;
+}
+
+void printSphere(const Sphere& s)
+{
+    std::cerr << "Sphere : "
+              << s.center.x
+              << ", "
+              << s.center.y
+              << ", "
+              << s.center.z
+              << ", "
+              << s.radius << std::endl;
 }
 
 bool SphereMesh::generateQuadrilateral(float threshold)
@@ -297,7 +327,7 @@ bool SphereMesh::generateQuadrilateral(float threshold)
 
     FourSpheres elem = pq.top();
 
-    if (elem.error > threshold) return false;
+    if (elem.error > threshold || elem.failed) return false;
 
     for (const int prysmoidIdx : elem.prysmoidIndices)
     {
@@ -311,6 +341,11 @@ bool SphereMesh::generateQuadrilateral(float threshold)
     spheres[b] = elem.spheres[1];
     spheres[c] = elem.spheres[2];
     spheres[d] = elem.spheres[3];
+
+    // spheres[a].center = elem.spheres[0].center;
+    // spheres[b].center = elem.spheres[1].center;
+    // spheres[c].center = elem.spheres[2].center;
+    // spheres[d].center = elem.spheres[3].center;
 
     quadrilaterals.push_back({a, b, c, d});
     quadsSpheres[a].push_back(quadrilaterals.size() - 1);
@@ -756,11 +791,6 @@ Prysmoid SphereMesh::extractPrysmoidFromString(const std::string &prysmoidString
 	return prysmoid;
 }
 
-glm::vec3 getTriNormal(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
-{
-	return cross(b - a, c - a);
-}
-
 void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 {
 	Sphere s0 = spheres[quad.indices[0]];
@@ -803,15 +833,21 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 
 	jq.computeError(original);
 
-	bool checkN0 = glm::dot(midPlane.n, n0) < 0;
-	bool checkN1 = glm::dot(midPlane.n, n1) < 0;
-	bool checkN2 = glm::dot(midPlane.n, n2) < 0;
-	bool checkN3 = glm::dot(midPlane.n, n3) < 0;
-	if (!checkN0 || !checkN1 || !checkN2 || !checkN3)
+    bool checkN0 = glm::dot(midPlane.n, n0) <= 0;
+    bool checkN1 = glm::dot(midPlane.n, n1) <= 0;
+    bool checkN2 = glm::dot(midPlane.n, n2) <= 0;
+    bool checkN3 = glm::dot(midPlane.n, n3) <= 0;
+    if (checkN0 || checkN1 || checkN2 || checkN3)
+    {
+        jq.failed = true;
 		jq.error = FLT_MAX;
+    }
 
 	if (!upperPlane.valid)
+    {
 		jq.error = FLT_MAX;
+        jq.failed = true;
+    }
 }
 
 Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString)
@@ -883,7 +919,7 @@ bool SphereMesh::saveToFile (const char *path, const char *name) const
 	return false;
 }
 
-bool operator % (const Prysmoid& p0, const Prysmoid& p1)
+std::vector<int> operator % (const Prysmoid& p0, const Prysmoid& p1)
 {
     std::unordered_set<int> v0;
     std::unordered_set<int> v1;
@@ -894,7 +930,22 @@ bool operator % (const Prysmoid& p0, const Prysmoid& p1)
         v1.insert(p1.indices[i]);
     }
 
-    return setIntersection(v0, v1).size() == 2;
+    return setIntersection(v0, v1);
+}
+
+bool SphereMesh::checkPrysmEdgesAgainstQuadDiagonal(int s1, int s2) const
+{
+    if (s1 > s2) std::swap(s1, s2);
+
+    int counter = 0;
+    for (const auto& prysm : prysmoids)
+        if (prysm.indices[0] == s1 && prysm.indices[1] == s2) counter++;
+        else if (prysm.indices[0] == s1 && prysm.indices[2] == s2) counter++;
+        else if (prysm.indices[1] == s1 && prysm.indices[2] == s2) counter++;
+
+    if (counter < 2) std::cerr << "Wrong code of check prysm edges against quad diag: " << counter << ", for: " << s1 << ", " << s2 << ";" << std::endl;
+
+    return counter == 2;
 }
 
 std::priority_queue<FourSpheres, std::vector<FourSpheres>, CompareByError> SphereMesh::findJoinableQuadrilaterals() const
@@ -903,8 +954,15 @@ std::priority_queue<FourSpheres, std::vector<FourSpheres>, CompareByError> Spher
 
     for (int i = 0; i < prysmoids.size(); i++)
         for (int j = i + 1; j < prysmoids.size(); j++)
-            if (prysmoids[i] % prysmoids[j])
+        {
+            auto intersection = prysmoids[i] % prysmoids[j];
+            if (intersection.size() == 2 && checkPrysmEdgesAgainstQuadDiagonal(intersection[0], intersection[1]))
                 pq.push(joinPrysmoids(i, j));
+            // else if (intersection.size() == 2) std::cerr << "Prysm i: " << prysmoids[i].indices[0] << ", " << prysmoids[i].indices[1]
+            //                                                          << ", " << prysmoids[i].indices[2] << " Prysm j: "
+            //                                                         << prysmoids[j].indices[0] << ", " << prysmoids[j].indices[1]
+            //               << ", " << prysmoids[j].indices[2] << std::endl;
+        }
 
     return pq;
 }
