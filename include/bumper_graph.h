@@ -187,6 +187,8 @@ namespace SM::Graph
 		std::vector<Bumper> bumper;
 		std::vector<Sphere> sphere;
 
+        std::unordered_map<int, int> rig;
+
 		void constructFrom (const SphereMesh& sm);
 
 		void translate (const glm::vec3& t);
@@ -209,8 +211,7 @@ namespace SM::Graph
 			glm::vec3 root;
 		};
 
-		std::unordered_map<int, int> rig;
-		int safeLeft = 5, safeRight = 3, cancer = 6;
+        int safeLeft = 5, safeRight = 3, cancer = 4;
 		std::unordered_map<int, Transform> transformMapper;
 
 		[[nodiscard]] std::vector<std::vector<bool>> getBumperAdjMatrix() const;

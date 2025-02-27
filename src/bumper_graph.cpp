@@ -1117,7 +1117,7 @@ void BumperGraph::fillBranchWithTransform(const int value, const std::vector<std
 		rig[top] = value;
 
 		for (int i = 0; i < sphere.size(); i++)
-			if (i != top && adjMatrix[top][i] && !visited.contains(i))
+            if (i != top && adjMatrix[top][i] && !visited.contains(i))
 			{
 				visited.insert(i);
 				q.push(i);
@@ -1127,8 +1127,8 @@ void BumperGraph::fillBranchWithTransform(const int value, const std::vector<std
 
 void BumperGraph::floodfill()
 {
-	transformMapper[safeLeft] = {{0.0f, 0.0f, 1.0f}, 0.5f, sphere[safeLeft].center};
-	transformMapper[safeLeft] = {{0.0f, 0.0f, 1.0f}, -0.5f, sphere[safeRight].center};
+    transformMapper[safeLeft] = {{0.0f, 0.0f, 1.0f}, glm::radians(-0.5f), sphere[safeLeft].center};
+    transformMapper[safeRight] = {{0.0f, 0.0f, 1.0f}, glm::radians(0.5f), sphere[safeRight].center};
 	transformMapper[cancer] = {{0.0f, 0.0f, 1.0f}, 0.0f, sphere[cancer].center};
 
 	// Sphere floodfill
@@ -1137,7 +1137,24 @@ void BumperGraph::floodfill()
 	std::queue<int> q;
 	std::unordered_set<int> visited;
 
-	fillBranchWithTransform(cancer, adjMatrix, q, visited);
+    q.push(cancer);
+    visited.insert(cancer);
+
+    while (!q.empty())
+    {
+        const int top = q.front();
+        q.pop();
+
+        rig[top] = cancer;
+
+        for (int i = 0; i < sphere.size(); i++)
+            if (i != top && adjMatrix[top][i] && !visited.contains(i) && i != safeLeft && i != safeRight)
+            {
+                visited.insert(i);
+                q.push(i);
+            }
+    }
+
 	fillBranchWithTransform(safeLeft, adjMatrix, q, visited);
 	fillBranchWithTransform(safeRight, adjMatrix, q, visited);
 

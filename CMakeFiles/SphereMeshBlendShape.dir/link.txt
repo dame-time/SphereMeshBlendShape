@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libSphereMeshBlendShaped.a CMakeFiles/SphereMeshBlendShape.dir/SphereMeshBlendShape_autogen/mocs_compilation.cpp.o CMakeFiles/SphereMeshBlendShape.dir/src/sphere_mesh.cpp.o CMakeFiles/SphereMeshBlendShape.dir/src/bumper_graph.cpp.o CMakeFiles/SphereMeshBlendShape.dir/src/bumper_grid.cpp.o
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libSphereMeshBlendShaped.a
