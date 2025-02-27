@@ -34,7 +34,7 @@ namespace SM {
 		float k {};
 
 		Plane() = default;
-        Plane(const glm::vec3& norm, const float _k) : n(norm), k(_k) {}
+        Plane(const glm::vec3& norm, const float _k) : n(glm::normalize(norm)), k(_k) {}
 		Plane(const glm::vec3& dir, const glm::vec3& p) : n(glm::normalize(dir)) { setPoint(p); }
 
 		[[nodiscard]] bool isBehind(const glm::vec3& p) const { return glm::dot(n, p) < k; }
@@ -61,7 +61,11 @@ namespace SM {
 		float radius;
 
 		Sphere() = default;
-		Sphere(const glm::vec3& center, float radius) : center(center), radius(radius) {}
+		Sphere(const glm::vec3& center, const float radius) : center(center), radius(radius) {}
+
+		void rotateAroundAxis(float angle, const glm::vec3& axis);
+		void translate(const glm::vec3& t);
+		void scale(float s);
 	};
 
 	struct Triangle {
@@ -161,7 +165,7 @@ namespace SM {
 		std::vector<Quadrilateral> quadrilaterals;
 
 		bool loadFromText(const char* text);
-		bool loadFromFile(const char* text);
+		bool loadFromFile(const char* filename);
 
 		bool saveToFile(const char* path, const char* name = "outSM.sm") const;
 
@@ -208,11 +212,11 @@ namespace SM {
         bool checkPrysmEdgesAgainstQuadDiagonal(int s1, int s2) const;
 
 		static Sphere extractSphereFromString(const std::string &sphereString);
-		static Capsuloid extractCapsuloidFromString(const std::string &s);
-		static Prysmoid extractPrysmoidFromString(const std::string &s);
-		Quadrilateral extractQuadFromString(const std::string &s);
+		static Capsuloid extractCapsuloidFromString(const std::string &capsuloidString);
+		static Prysmoid extractPrysmoidFromString(const std::string &prysmoidString);
+		Quadrilateral extractQuadFromString(const std::string &quadString) const;
 
-		void computeFourSpheresFrom(const Quadrilateral& quad);
+		void computeFourSpheresFrom(const Quadrilateral& quad) const;
 	};
 
 	// TODO: implement this class

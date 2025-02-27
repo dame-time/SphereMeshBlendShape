@@ -56,8 +56,8 @@ Sphere deeperSphere(const Sphere& sphereA, const Sphere& sphereB, const glm::vec
     const Grid::BumperCapsuloid bc (-1, -1, sphereA, sphereB);
 
 	const glm::vec3 pa = p - sphereA.center;
-	float t = glm::dot(pa, bc.dNorm);
-	const float pq = std::sqrt(glm::dot(pa, pa) - (t * t));
+	float t = dot(pa, bc.dNorm);
+	const float pq = std::sqrt(dot(pa, pa) - t * t);
 
 	t +=  bc.k * pq;
 
@@ -74,7 +74,7 @@ Sphere deeperSphere(const Sphere& sphereA, const Sphere& sphereB, const glm::vec
 
 bool isDegenerateCapsuloid(const Sphere& sphereA, const Sphere& sphereB)
 {
-	return glm::distance(sphereA.center, sphereB.center) <= std::abs(sphereA.radius - sphereB.radius);
+	return distance(sphereA.center, sphereB.center) <= std::abs(sphereA.radius - sphereB.radius);
 }
 
 void SphereMesh::removeDegeneratePrysmoids()
@@ -146,7 +146,7 @@ void SphereMesh::removeRedundantElements()
 
 	for (auto& prysmoid : prysmoids)
 	{
-		std::vector<int> indices = {prysmoid.indices[0], prysmoid.indices[1], prysmoid.indices[2]};
+		std::vector indices = {prysmoid.indices[0], prysmoid.indices[1], prysmoid.indices[2]};
 		std::ranges::sort(indices);
 		std::string key = std::to_string(indices[0]) + std::to_string(indices[1]) + std::to_string(indices[2]);
 		if (uniquePrysmoids.contains(key))
@@ -154,7 +154,7 @@ void SphereMesh::removeRedundantElements()
 
 		newPrysmoids.push_back(prysmoid);
 		uniquePrysmoids.insert(key);
-		std::vector<std::string> capsulesOverPrysmoid = {std::to_string(indices[0]) + std::to_string(indices[1]),
+		std::vector capsulesOverPrysmoid = {std::to_string(indices[0]) + std::to_string(indices[1]),
 														   std::to_string(indices[1]) + std::to_string(indices[2]),
 														   std::to_string(indices[0]) + std::to_string(indices[2])};
 		uniqueCapsuloids.insert(capsulesOverPrysmoid[0]);
@@ -167,7 +167,7 @@ void SphereMesh::removeRedundantElements()
 
 	for (auto& capsuloid : capsuloids)
 	{
-		std::vector<int> indices = {capsuloid.indices[0], capsuloid.indices[1]};
+		std::vector indices = {capsuloid.indices[0], capsuloid.indices[1]};
 		std::ranges::sort(indices);
 		std::string key = std::to_string(indices[0]) + std::to_string(indices[1]);
 		if (uniqueCapsuloids.contains(key))
@@ -222,17 +222,17 @@ std::vector<int> setDifference(const std::unordered_set<int>& set1, const std::u
 	return difference;
 }
 
-FourSpheres SphereMesh::joinPrysmoids(int p1, int p2) const
+FourSpheres SphereMesh::joinPrysmoids(const int p1, const int p2) const
 {
-    const Prysmoid& prysm1 = prysmoids[p1];
-    const Prysmoid& prysm2 = prysmoids[p2];
+    const auto&[indices1] = prysmoids[p1];
+    const auto&[indices2] = prysmoids[p2];
 
 	std::unordered_set<int> p1Indices;
 	std::unordered_set<int> p2Indices;
 	for (int i = 0; i < 3; i++)
 	{
-        p1Indices.insert(prysm1.indices[i]);
-        p2Indices.insert(prysm2.indices[i]);
+        p1Indices.insert(indices1[i]);
+        p2Indices.insert(indices2[i]);
 	}
 
     const std::vector<int> ac = setIntersection(p1Indices, p2Indices);
@@ -259,7 +259,7 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
 
     glm::vec3 diagonalAB = s0.center - s2.center;
     glm::vec3 diagonalCD = s1.center - s3.center;
-    glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+    glm::vec3 midPlaneNormal = normalize(cross(diagonalAB, diagonalCD));
 
     Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
 
@@ -270,10 +270,10 @@ FourSpheres SphereMesh::joinPrysmoids(int p1, int p2, int a, int b, int c, int d
 
     Plane upperPlane = commonTangentPlane(s0, s1, s2, s3, 1);
 
-    s0.radius = glm::distance(s0.center, upperPlane.project(s0.center));
-    s1.radius = glm::distance(s1.center, upperPlane.project(s1.center));
-    s2.radius = glm::distance(s2.center, upperPlane.project(s2.center));
-    s3.radius = glm::distance(s3.center, upperPlane.project(s3.center));
+    s0.radius = distance(s0.center, upperPlane.project(s0.center));
+    s1.radius = distance(s1.center, upperPlane.project(s1.center));
+    s2.radius = distance(s2.center, upperPlane.project(s2.center));
+    s3.radius = distance(s3.center, upperPlane.project(s3.center));
 
     FourSpheres original = {spheres[a], spheres[b], spheres[c], spheres[d]};
     FourSpheres jq = {s0, s1, s2, s3};
@@ -319,9 +319,9 @@ void printSphere(const Sphere& s)
               << s.radius << std::endl;
 }
 
-bool SphereMesh::generateQuadrilateral(float threshold)
+bool SphereMesh::generateQuadrilateral(const float threshold)
 {
-    auto pq = findJoinableQuadrilaterals();
+    const auto pq = findJoinableQuadrilaterals();
 
     if (pq.empty()) return false;
 
@@ -335,17 +335,12 @@ bool SphereMesh::generateQuadrilateral(float threshold)
         prysmoids.pop_back();
     }
 
-    int a = elem.indices[0], b = elem.indices[1], c = elem.indices[2], d = elem.indices[3];
+    const int a = elem.indices[0], b = elem.indices[1], c = elem.indices[2], d = elem.indices[3];
 
     spheres[a] = elem.spheres[0];
     spheres[b] = elem.spheres[1];
     spheres[c] = elem.spheres[2];
     spheres[d] = elem.spheres[3];
-
-    // spheres[a].center = elem.spheres[0].center;
-    // spheres[b].center = elem.spheres[1].center;
-    // spheres[c].center = elem.spheres[2].center;
-    // spheres[d].center = elem.spheres[3].center;
 
     quadrilaterals.push_back({a, b, c, d});
     quadsSpheres[a].push_back(quadrilaterals.size() - 1);
@@ -361,11 +356,11 @@ bool SphereMesh::isSphereInQuadrilateral(const int sphereIdx) const
     return quadsSpheres.contains(sphereIdx);
 }
 
-std::vector<int> SphereMesh::getSymmetricalSpheres(int sphereIdx)
+std::vector<int> SphereMesh::getSymmetricalSpheres(const int sphereIdx)
 {
     std::vector<int> res;
 
-    for (auto& quad : quadsSpheres[sphereIdx])
+    for (const auto& quad : quadsSpheres[sphereIdx])
         for (int i = 0; i < 4; i++)
             if (sphereIdx == quadrilaterals[quad].indices[i])
             {
@@ -376,17 +371,17 @@ std::vector<int> SphereMesh::getSymmetricalSpheres(int sphereIdx)
     return res;
 }
 
-void SphereMesh::translateScale(glm::vec3 t , float s){
+void SphereMesh::translateScale(const glm::vec3 t , const float s){
 	for (Sphere& sp : spheres) {
 		sp.center = (sp.center + t) * s;
 		sp.radius *= s;
 	}
 }
 
-void SphereMesh::scaleTranslate(glm::vec3 t, float s)
+void SphereMesh::scaleTranslate(const glm::vec3 t, const float s)
 {
 	for (Sphere& sp : spheres) {
-		sp.center = (sp.center * s) + t;
+		sp.center = sp.center * s + t;
 		sp.radius *= s;
 	}
 
@@ -425,7 +420,7 @@ void SphereMesh::scale(const float s)
 void SphereMesh::rotateY(const int angle)
 {
 	const float radians = glm::radians(static_cast<float>(angle));
-	const auto rotationMatrix = glm::mat3(glm::rotate(glm::mat4(1.0f), radians, glm::vec3(0, 1, 0)));
+	const auto rotationMatrix = glm::mat3(rotate(glm::mat4(1.0f), radians, glm::vec3(0, 1, 0)));
 
 	for (Sphere &s : spheres)
 		s.center = s.center * rotationMatrix;
@@ -545,15 +540,32 @@ bool Plane::operator == (const Plane& other) const
 {
 	constexpr float epsilon = 1e-3f;
 
-	const glm::vec3 n1 = glm::normalize(n);
-	const glm::vec3 n2 = glm::normalize(other.n);
+	const glm::vec3 n1 = normalize(n);
+	const glm::vec3 n2 = normalize(other.n);
 
-	const bool normalsEqual = glm::all(glm::epsilonEqual(n1, n2, epsilon));
-	const bool normalsOpposite = glm::all(glm::epsilonEqual(n1, -n2, epsilon));
+	const bool normalsEqual = all(epsilonEqual(n1, n2, epsilon));
+	const bool normalsOpposite = all(epsilonEqual(n1, -n2, epsilon));
 	const bool kEqual = std::fabs(k - other.k) < epsilon;
 	const bool kOpposite = std::fabs(k + other.k) < epsilon;
 
 	return (normalsEqual && kEqual) || (normalsOpposite && kOpposite);
+}
+
+void Sphere::rotateAroundAxis(const float angle, const glm::vec3 &axis)
+{
+	const auto rot = glm::mat3(rotate(glm::mat4(1.0f), angle, glm::normalize(axis)));
+	center = rot * center;
+}
+
+void Sphere::translate(const glm::vec3 &t)
+{
+	center += t;
+}
+
+void Sphere::scale(const float s)
+{
+	center *= s;
+	radius *= s;
 }
 
 FourSpheres::FourSpheres(const Sphere &a, const Sphere &b, const Sphere &c, const Sphere &d)
@@ -569,12 +581,12 @@ void FourSpheres::computeError(const FourSpheres &other)
     error = 0.0f;
     for (int i = 0; i < 4; i++)
     {
-        error = glm::max(error, glm::distance(spheres[i].center, other.spheres[i].center));
+        error = glm::max(error, distance(spheres[i].center, other.spheres[i].center));
         error = glm::max(error, glm::abs(spheres[i].radius - other.spheres[i].radius));
     }
 }
 
-FourSpheres::FourSpheres(bool isFailed)
+FourSpheres::FourSpheres(const bool isFailed)
 {
     failed = isFailed;
 }
@@ -604,10 +616,7 @@ void FourSpheres::sortIndices()
 
 Plane FourSpheres::computeCommonTangentPlane(int direction) const
 {
-	glm::vec3 a = spheres[0].center;
-	glm::vec3 b = spheres[1].center;
-	glm::vec3 c = spheres[2].center;
-	glm::vec3 d = spheres[3].center;
+	glm::vec3 a, b, c, d;
 
 	auto sign = static_cast<float>(direction);
 
@@ -622,10 +631,10 @@ Plane FourSpheres::computeCommonTangentPlane(int direction) const
 		c = spheres[2].center + n * spheres[2].radius;
 		d = spheres[3].center + n * spheres[3].radius;
 
-		glm::vec3 new_n = glm::normalize(sign * glm::cross(a - c, b - d));
-		if (glm::dot(n, new_n) >= 0.999f)
+		glm::vec3 new_n = normalize(sign * cross(a - c, b - d));
+		if (dot(n, new_n) >= 0.999f)
 		{
-			if (glm::dot(startN, new_n) < 0)
+			if (dot(startN, new_n) < 0)
 			{
 				std::cerr << "Degenerate Prysmoid detected (Normal flipped)" << std::endl;
 				p.valid = false;
@@ -644,11 +653,11 @@ Plane FourSpheres::computeCommonTangentPlane(int direction) const
 	return p;
 }
 
-Plane FourSpheres::computeCommonMidPlane(int direction) const
+Plane FourSpheres::computeCommonMidPlane(const int direction) const
 {
-	glm::vec3 diagonalAB = spheres[0].center - spheres[2].center;
-	glm::vec3 diagonalCD = spheres[1].center - spheres[3].center;
-	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+	const glm::vec3 diagonalAB = spheres[0].center - spheres[2].center;
+	const glm::vec3 diagonalCD = spheres[1].center - spheres[3].center;
+	const glm::vec3 midPlaneNormal = normalize(cross(diagonalAB, diagonalCD));
 
 	Plane mp = {midPlaneNormal, (spheres[0].center + spheres[1].center + spheres[2].center + spheres[3].center) / 4.0f};
 
@@ -751,13 +760,13 @@ Capsuloid SphereMesh::extractCapsuloidFromString(const std::string &capsuloidStr
 {
 	std::string s = capsuloidString;
 
-	std::string delimiter = " ";
+	const std::string delimiter = " ";
 	std::string token = s.substr(0, s.find(delimiter));
-	int sphereA = std::stoi(token);
+	const int sphereA = std::stoi(token);
 	s.erase(0, s.find(delimiter) + delimiter.length());
 
 	token = s.substr(0, s.find(delimiter));
-	int sphereB = std::stoi(token);
+	const int sphereB = std::stoi(token);
 
 	Capsuloid capsuloid{};
 	capsuloid.indices[0] = sphereA;
@@ -770,17 +779,17 @@ Prysmoid SphereMesh::extractPrysmoidFromString(const std::string &prysmoidString
 {
 	std::string s = prysmoidString;
 
-	std::string delimiter = " ";
+	const std::string delimiter = " ";
 	std::string token = s.substr(0, s.find(delimiter));
-	int prysmoidA = std::stoi(token);
+	const int prysmoidA = std::stoi(token);
 	s.erase(0, s.find(delimiter) + delimiter.length());
 
 	token = s.substr(0, s.find(delimiter));
-	int prysmoidB = std::stoi(token);
+	const int prysmoidB = std::stoi(token);
 	s.erase(0, s.find(delimiter) + delimiter.length());
 
 	token = s.substr(0, s.find(delimiter));
-	int prysmoidC = std::stoi(token);
+	const int prysmoidC = std::stoi(token);
 
 	Prysmoid prysmoid{};
 
@@ -800,7 +809,7 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 
 	glm::vec3 diagonalAB = s0.center - s2.center;
 	glm::vec3 diagonalCD = s1.center - s3.center;
-	glm::vec3 midPlaneNormal = glm::normalize(glm::cross(diagonalAB, diagonalCD));
+	glm::vec3 midPlaneNormal = normalize(cross(diagonalAB, diagonalCD));
 
 	Plane midPlane {midPlaneNormal, (s0.center + s1.center + s2.center + s3.center) / 4.0f};
 
@@ -811,10 +820,10 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
 
 	Plane upperPlane = commonTangentPlane(s0, s1, s2, s3, 1);
 
-	s0.radius = glm::distance(s0.center, upperPlane.project(s0.center));
-	s1.radius = glm::distance(s1.center, upperPlane.project(s1.center));
-	s2.radius = glm::distance(s2.center, upperPlane.project(s2.center));
-	s3.radius = glm::distance(s3.center, upperPlane.project(s3.center));
+	s0.radius = distance(s0.center, upperPlane.project(s0.center));
+	s1.radius = distance(s1.center, upperPlane.project(s1.center));
+	s2.radius = distance(s2.center, upperPlane.project(s2.center));
+	s3.radius = distance(s3.center, upperPlane.project(s3.center));
 
 	FourSpheres original = {spheres[quad.indices[0]], spheres[quad.indices[1]], spheres[quad.indices[2]], spheres[quad.indices[3]]};
 	FourSpheres jq = {s0, s1, s2, s3};
@@ -850,7 +859,7 @@ void SphereMesh::computeFourSpheresFrom(const Quadrilateral& quad)
     }
 }
 
-Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString)
+Quadrilateral SphereMesh::extractQuadFromString(const std::string &quadString) const
 {
 	std::string s = quadString;
 
@@ -892,19 +901,19 @@ bool SphereMesh::saveToFile (const char *path, const char *name) const
 	for (auto& s : spheres)
 		fileContent << s.center.x << " " << s.center.y << " " << s.center.z << " " << s.radius << std::endl;
 
-	for (auto& p : prysmoids)
-		fileContent << p.indices[0] << " " << p.indices[1] << " " << p.indices[2] << std::endl;
+	for (const auto&[indices] : prysmoids)
+		fileContent << indices[0] << " " << indices[1] << " " << indices[2] << std::endl;
 
-	for (auto& c : capsuloids)
-		fileContent << c.indices[0] << " " << c.indices[1] << std::endl;
+	for (const auto&[indices] : capsuloids)
+		fileContent << indices[0] << " " << indices[1] << std::endl;
 
-	for (auto& q : quadrilaterals)
-		fileContent << q.indices[0] << " " << q.indices[1] << " " << q.indices[2] << " " << q.indices[3] << std::endl;
+	for (const auto&[indices] : quadrilaterals)
+		fileContent << indices[0] << " " << indices[1] << " " << indices[2] << " " << indices[3] << std::endl;
 
 	namespace fs = std::__fs::filesystem;
 	fs::path cwd = fs::current_path();
 
-	std::string separator = std::string(1, fs::path::preferred_separator);
+	auto separator = std::string(1, fs::path::preferred_separator);
 
 	const std::string& filePath = name;
 	std::string folderPath = "." + separator;
@@ -958,10 +967,6 @@ std::priority_queue<FourSpheres, std::vector<FourSpheres>, CompareByError> Spher
             auto intersection = prysmoids[i] % prysmoids[j];
             if (intersection.size() == 2 && checkPrysmEdgesAgainstQuadDiagonal(intersection[0], intersection[1]))
                 pq.push(joinPrysmoids(i, j));
-            // else if (intersection.size() == 2) std::cerr << "Prysm i: " << prysmoids[i].indices[0] << ", " << prysmoids[i].indices[1]
-            //                                                          << ", " << prysmoids[i].indices[2] << " Prysm j: "
-            //                                                         << prysmoids[j].indices[0] << ", " << prysmoids[j].indices[1]
-            //               << ", " << prysmoids[j].indices[2] << std::endl;
         }
 
     return pq;
@@ -978,7 +983,7 @@ int SphereMesh::intersectedSphereAlongRay(const glm::vec3& rayOrigin, const glm:
         glm::vec3 currHitPos;
         if (raySphereIntersection(rayOrigin, rayDir, sphere.center, sphere.radius, t, currHitPos))
         {
-            float currDist = glm::distance2(sphere.center, rayOrigin);
+            const float currDist = distance2(sphere.center, rayOrigin);
             if (currDist < closestDist)
             {
                 hitPos = currHitPos;
@@ -992,29 +997,29 @@ int SphereMesh::intersectedSphereAlongRay(const glm::vec3& rayOrigin, const glm:
 }
 
 bool SphereMesh::raySphereIntersection(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
-                                       const glm::vec3& sphereCenter, float sphereRadius, float& t, glm::vec3& hitPos) {
-    glm::vec3 L = sphereCenter - rayOrigin;
-    float tca = glm::dot(L, rayDir);
+                                       const glm::vec3& sphereCenter, const float sphereRadius, float& t, glm::vec3& hitPos) {
+    const glm::vec3 L = sphereCenter - rayOrigin;
+    const float tca = dot(L, rayDir);
 
-    float d2 = glm::dot(L, L) - tca * tca;
-    float radius2 = sphereRadius * sphereRadius;
+    const float d2 = dot(L, L) - tca * tca;
+    const float radius2 = sphereRadius * sphereRadius;
     if (d2 > radius2)
         return false;
 
-    float thc = sqrt(radius2 - d2);
-    float t0 = tca - thc;
-    float t1 = tca + thc;
+    const float thc = sqrt(radius2 - d2);
+    const float t0 = tca - thc;
+    const float t1 = tca + thc;
 
     if (t1 < 0)
         return false;
 
-    t = (t0 < 0) ? t1 : t0;
+    t = t0 < 0 ? t1 : t0;
     hitPos = rayOrigin + rayDir * t;
 
     return true;
 }
 
-void SphereMesh::duplicateSphere(int i)
+void SphereMesh::duplicateSphere(const int i)
 {
     if (i >= spheres.size() || i < 0)
         return;
@@ -1024,7 +1029,7 @@ void SphereMesh::duplicateSphere(int i)
     spheres.push_back(newS);
 }
 
-void SphereMesh::removeSphere(int i)
+void SphereMesh::removeSphere(const int i)
 {
     if (i >= spheres.size() || i < 0)
         return;
@@ -1094,7 +1099,7 @@ void SphereMesh::addCapsuloid(int i, int j)
     capsuloids.push_back({i, j});
 }
 
-void SphereMesh::addPrysmoid(int i, int j, int k)
+void SphereMesh::addPrysmoid(const int i, const int j, const int k)
 {
     if (i >= spheres.size() || i < 0 || j >= spheres.size() || j < 0
         || k >= spheres.size() || k < 0 || i == k || i == j || j == k)
@@ -1128,8 +1133,8 @@ void SphereMesh::removeLink(int i, int j)
 
     for (int idx = 0; idx < capsuloids.size(); idx++)
     {
-        int x = capsuloids[idx].indices[0];
-        int y = capsuloids[idx].indices[1];
+        const int x = capsuloids[idx].indices[0];
+        const int y = capsuloids[idx].indices[1];
         if ((x == i && y == j) || (x == j && y == i))
         {
             capsuloids.erase(capsuloids.begin() + idx);
@@ -1138,7 +1143,7 @@ void SphereMesh::removeLink(int i, int j)
     }
 }
 
-void SphereMesh::removeLink(int i, int j, int k)
+void SphereMesh::removeLink(const int i, const int j, const int k)
 {
     if (i >= spheres.size() || i < 0 || j >= spheres.size() || j < 0 || k >= spheres.size() || k < 0)
         return;
@@ -1146,14 +1151,14 @@ void SphereMesh::removeLink(int i, int j, int k)
     if (i == j || i == k || j == k)
         return;
 
-    std::vector<int> indices = {i, j, k};
+    std::vector indices = {i, j, k};
     std::ranges::sort(indices);
 
     for (int idx = 0; idx < prysmoids.size(); idx++)
     {
-        int x = prysmoids[idx].indices[0];
-        int y = prysmoids[idx].indices[1];
-        int z = prysmoids[idx].indices[2];
+        const int x = prysmoids[idx].indices[0];
+        const int y = prysmoids[idx].indices[1];
+        const int z = prysmoids[idx].indices[2];
 
         if (x == indices[0] && y == indices[1] && z == indices[2])
         {
@@ -1169,7 +1174,7 @@ void SphereMesh::removeLink(int i, int j, int k)
 // TODO: Implement the SphereMeshBlendShape class
 bool SphereMeshBlendShape::loadFromFile (const char *filename)
 {
-	SphereMesh sm;
+	const SphereMesh sm;
 
 	/*if (!sm.loadFromFile(filename))
 		return false;*/

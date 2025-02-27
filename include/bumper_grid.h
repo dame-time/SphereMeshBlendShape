@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "sphere_mesh.h"
+#define DEBUG
 
 namespace SM::Grid
 {
@@ -68,7 +69,7 @@ namespace SM::Grid
 		int sphereIndex {-1};
 
 		BumperSphere() = default;
-		explicit BumperSphere(const int sphereIndex) : sphereIndex(sphereIndex) {};
+		explicit BumperSphere(const int sphereIndex) : sphereIndex(sphereIndex) {}
 	};
 
 	class BumperQuad
@@ -125,7 +126,7 @@ namespace SM::Grid
 
 		bool operator == (const Bumper &) const;
 
-		Bumper() : bumper(BumperSphere()) {};
+		Bumper() : bumper(BumperSphere()) {}
 	};
 
 	struct GridSample
@@ -256,6 +257,7 @@ namespace SM::Grid
 		void clearAllFlagsForTesting(); // for testing purposes only
 
 #ifdef DEBUG
+		void printBumperStats() const;
 		void printOperationHistogram();
 		void drawGrid () const;
 		void exportGridSamplesToPLY(const std::string& filename) const;
@@ -269,6 +271,30 @@ namespace SM::Grid
 		void renderQuad(int bumperIndex) const;
 		void renderAllQuads() const;
 		[[nodiscard]] std::vector<int> getQuadIndices() const;
+		void collectQuadArrowGeometry(
+			int bumperIndex,
+			std::vector<glm::vec3>& outLineVertices,
+			std::vector<glm::vec3>& outLineColors,
+			std::vector<glm::vec3>& outConeVertices,
+			std::vector<glm::vec3>& outConeNormals,
+			std::vector<glm::vec3>& outConeColors
+		) const;
+		bool createPlanePoints(
+			std::vector<glm::vec3> &outVertices,
+			std::vector<glm::vec3> &outNormals,
+			std::vector<glm::vec3> &outColors,
+			const BumperQuad &bumperQuad,
+			const glm::vec3(&sideColors)[4],
+			int side,
+			const Plane &plane
+		) const;
+		bool createUpperPlanePoints(
+			std::vector<glm::vec3> &outVertices,
+			std::vector<glm::vec3> &outNormals,
+			std::vector<glm::vec3> &outColors,
+			const BumperQuad &bumperQuad,
+			const glm::vec3 &planeColor
+		) const;
 #endif
 
 	private:
@@ -279,15 +305,11 @@ namespace SM::Grid
 		std::vector<std::set<int>> gridWIP;
 
 		[[nodiscard]] Quadrilateral reorderVerticesClockwise(const Quadrilateral& quad) const;
-		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& q, int direction) const;
+		[[nodiscard]] FourSpheres computeFourSpheresFrom(const Quadrilateral& quad, int direction) const;
 
 		float projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 
-		bool constructionPushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
-		bool constructionPushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
-		bool constructionPushOutsideQuad(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool pushOutsideSphere(glm::vec3& p, glm::vec3& n, const int& bumperIndex)  const;
-
 		bool pushOutsideCapsuloid(glm::vec3& p, glm::vec3& n, int bumperIndex)  const;
 		bool pushOutsidePrysmoid(glm::vec3& p, glm::vec3& n, int bumperIndex, short flags = 0)  const;
 		bool pushOutsideQuad(glm::vec3& p, glm::vec3& n, int bumperIndex, short flags = 0)  const;
