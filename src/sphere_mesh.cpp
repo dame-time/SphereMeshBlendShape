@@ -416,6 +416,15 @@ void SphereMesh::rotateY(const int angle)
 	updateBBox();
 }
 
+void SphereMesh::inflate(const float t)
+{
+	for (auto& s : spheres)
+	{
+		s.radius += t;
+		s.radius = glm::clamp(s.radius, 0.01f, FLT_MAX);
+	}
+}
+
 void SphereMesh::printf() const{
 	std::cout
 			<< "Sphere mesh: "
@@ -541,8 +550,13 @@ bool Plane::operator == (const Plane& other) const
 
 void Sphere::rotateAroundAxis(const float angle, const glm::vec3 &axis)
 {
-	const auto rot = glm::mat3(rotate(glm::mat4(1.0f), angle, glm::normalize(axis)));
+	const auto rot = glm::mat3(glm::rotate(glm::mat4(1.0f), angle, glm::normalize(axis)));
 	center = rot * center;
+}
+
+void Sphere::rotate(const glm::mat3 &r)
+{
+	center = r * center;
 }
 
 void Sphere::translate(const glm::vec3 &t)

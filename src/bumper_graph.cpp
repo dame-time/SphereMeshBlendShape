@@ -8,8 +8,6 @@
 
 #include "bumper_graph.h"
 
-#include <unordered_set>
-
 using namespace SM;
 using namespace SM::Graph;
 
@@ -36,6 +34,8 @@ void BumperCapsuloid::scale(const float r)
 
 void BumperCapsuloid::rotate(const glm::mat3 &rot)
 {
+	dNorm = rot * dNorm;
+
 	for (auto& p : neib)
 		p.rotate(rot);
 
@@ -80,16 +80,17 @@ BumperCapsuloid::BumperCapsuloid (const int indexA, const int indexB, const Sphe
 		k = r0r1 / (std::sqrt(diff) * dLength);
 
 	const float diffRadius = fabs(sB.radius - sA.radius);
-	float alpha = 0.0f;
-	if (dLength > 1e-6f && diffRadius < dLength) alpha = asinf(diffRadius / dLength);
+	const float sinAlpha = diffRadius / dLength;
+
+	const float cosAlpha = std::sqrt(1 - sinAlpha * sinAlpha);
 
 	cones[0].apex = sA.center;
-	cones[0].axis = dNorm;
-	cones[0].halfAngle = alpha;
+	cones[0].axis = normalize(dNorm);
+	cones[0].cosHalfAngle = cosAlpha;
 
 	cones[1].apex = sB.center;
-	cones[1].axis = -dNorm;
-	cones[1].halfAngle = alpha;
+	cones[1].axis = -normalize(dNorm);
+	cones[1].cosHalfAngle = cosAlpha;
 }
 
 void BumperSphere::translate(const glm::vec3 &t)
@@ -98,7 +99,7 @@ void BumperSphere::translate(const glm::vec3 &t)
 		cone.translate(t);
 }
 
-void BumperSphere::scale(float r)
+void BumperSphere::scale(const float r)
 {
 	for (auto& cone : cones)
 		cone.scale(r);
@@ -332,32 +333,72 @@ void BumperGraph::rotateY(const int angle)
 		}
 }
 
+glm::vec3 BumperGraph::getBumperCentroid(const int idx) const
+{
+	if (bumper[idx].shapeType == Bumper::SPHERE) return sphere[idx].center;
+	if (bumper[idx].shapeType == Bumper::CAPSULOID)
+	{
+		const auto& bc = std::get<BumperCapsuloid>(bumper[idx].bumper);
+		return (sphere[bc.sphereIndex[0]].center + sphere[bc.sphereIndex[1]].center) / 2.0f;
+	}
+	if (bumper[idx].shapeType == Bumper::PRYSMOID)
+	{
+		const auto& bp = std::get<BumperPrysmoid>(bumper[idx].bumper);
+		return (sphere[bp.sphereIndex[0]].center + sphere[bp.sphereIndex[1]].center
+			+ sphere[bp.sphereIndex[2]].center) / 3.0f;
+	}
+	if (bumper[idx].shapeType == Bumper::QUAD)
+	{
+		const auto& bq = std::get<BumperQuad>(bumper[idx].bumper);
+		return (sphere[bq.sphereIndex[0]].center + sphere[bq.sphereIndex[1]].center
+			+ sphere[bq.sphereIndex[2]].center + sphere[bq.sphereIndex[3]].center) / 4.0f;
+	}
+
+	return {};
+}
+
 bool BumperGraph::pushOutside(glm::vec3 &p, glm::vec3 &n, int &bumperIndex) const
 {
 	if (bumperIndex == -1) return pushOutsideBruteForce(p, n, bumperIndex);
 
-	// TODO: Check the current bumperIndex, and all the neighbors or the current one
 	if (bumper[bumperIndex].shapeType == Bumper::SPHERE)
 	{
-		if (!pushOutsideSphere(p, n, bumperIndex)) return false;
+		if (pushOutsideSphere(p, n, bumperIndex))
+			return true;
 
+		bool foundCone = false;
+		int count = 0;
 		for (const Cone& c : std::get<BumperSphere>(bumper[bumperIndex].bumper).cones)
 		{
-			int idx = c.capsuloidIndex;
-			if (c.contains(p) && pushOutsideCapsuloid(p, n, idx))
+			if (c.contains(p))
 			{
-				bumperIndex = idx;
-				return true;
+				bumperIndex = c.capsuloidIndex;
+				foundCone = true;
+				++count;
+				// break;
 			}
 		}
+
+		if (foundCone)
+		{
+			if (count > 1)
+			{
+				bumperIndex = -1;
+				return pushOutsideBruteForce(p, n, bumperIndex);
+			}
+
+			if (pushOutsideCapsuloid(p, n, bumperIndex)) return true;
+
+			bumperIndex = -1;
+			return pushOutsideBruteForce(p, n, bumperIndex);
+		}
+
+		return false;
 	}
 	if (bumper[bumperIndex].shapeType == Bumper::CAPSULOID)
 	{
-		if(!pushOutsideCapsuloid(p, n, bumperIndex)) return false;
-
 		const int idx = bumperIndex;
-		if (!pushOutsideCapsuloid(p, n, bumperIndex))
-			return false;
+		if (pushOutsideCapsuloid(p, n, bumperIndex)) return true;
 
 		// Skipping opp planes
 		for (int index : std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers)
@@ -425,6 +466,7 @@ void BumperGraph::initializeBumperCapsuloids(const SphereMesh &sm, std::vector<s
 		cone1.capsuloidIndex = bumper.size();
 		std::get<BumperSphere>(bumper[bc.sphereIndex[0]].bumper).cones.push_back(cone0);
 		std::get<BumperSphere>(bumper[bc.sphereIndex[1]].bumper).cones.push_back(cone1);
+
 		bc.hasFather = false;
 
 		Bumper node {};
@@ -523,9 +565,17 @@ void BumperGraph::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<st
 		}
 
 		int idx = capsuloidAdj[indices[0]][indices[1]];
+		auto& bumperCapsuloid0 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid0.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid0.neibBumpers.push_back(lowerIndex);
+
+		Cone& cone0 = bumperCapsuloid0.cones[0];
+		Cone& cone1 = bumperCapsuloid0.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid0.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid0.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperPrysmoid>(bumper[upperIndex].bumper).neibSide[2] = idx;
 		std::get<BumperPrysmoid>(bumper[lowerIndex].bumper).neibSide[2] = idx;
@@ -539,9 +589,17 @@ void BumperGraph::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<st
 		}
 
 		idx = capsuloidAdj[indices[0]][indices[2]];
+		auto& bumperCapsuloid1 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid1.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid1.neibBumpers.push_back(lowerIndex);
+
+		cone0 = bumperCapsuloid1.cones[0];
+		cone1 = bumperCapsuloid1.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid1.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid1.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperPrysmoid>(bumper[upperIndex].bumper).neibSide[1] = idx;
 		std::get<BumperPrysmoid>(bumper[lowerIndex].bumper).neibSide[1] = idx;
@@ -555,9 +613,17 @@ void BumperGraph::initializeBumperPrysmoids(const SphereMesh &sm, std::vector<st
 		}
 
 		idx = capsuloidAdj[indices[1]][indices[2]];
+		auto& bumperCapsuloid2 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid2.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid2.neibBumpers.push_back(lowerIndex);
+
+		cone0 = bumperCapsuloid2.cones[0];
+		cone1 = bumperCapsuloid2.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid2.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid2.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperPrysmoid>(bumper[upperIndex].bumper).neibSide[0] = idx;
 		std::get<BumperPrysmoid>(bumper[lowerIndex].bumper).neibSide[0] = idx;
@@ -647,9 +713,17 @@ void BumperGraph::initializeBumperQuads(const SphereMesh &sm, std::vector<std::v
 		}
 
 		int idx = capsuloidAdj[p.indices[0]][p.indices[1]];
+		auto& bumperCapsuloid0 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid0.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid0.neibBumpers.push_back(lowerIndex);
+
+		Cone& cone0 = bumperCapsuloid0.cones[0];
+		Cone& cone1 = bumperCapsuloid0.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid0.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid0.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[0] = idx;
 		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[0] = idx;
@@ -663,9 +737,17 @@ void BumperGraph::initializeBumperQuads(const SphereMesh &sm, std::vector<std::v
 		}
 
 		idx = capsuloidAdj[p.indices[1]][p.indices[2]];
+		auto& bumperCapsuloid1 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid1.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid1.neibBumpers.push_back(lowerIndex);
+
+		cone0 = bumperCapsuloid1.cones[0];
+		cone1 = bumperCapsuloid1.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid1.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid1.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[1] = idx;
 		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[1] = idx;
@@ -679,9 +761,17 @@ void BumperGraph::initializeBumperQuads(const SphereMesh &sm, std::vector<std::v
 		}
 
 		idx = capsuloidAdj[p.indices[2]][p.indices[3]];
+		auto& bumperCapsuloid2 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid2.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid2.neibBumpers.push_back(lowerIndex);
+
+		cone0 = bumperCapsuloid2.cones[0];
+		cone1 = bumperCapsuloid2.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid2.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid2.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[2] = idx;
 		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[2] = idx;
@@ -695,9 +785,17 @@ void BumperGraph::initializeBumperQuads(const SphereMesh &sm, std::vector<std::v
 		}
 
 		idx = capsuloidAdj[p.indices[3]][p.indices[0]];
+		auto& bumperCapsuloid3 = std::get<BumperCapsuloid>(bumper[idx].bumper);
 
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(upperIndex);
-		std::get<BumperCapsuloid>(bumper[idx].bumper).neibBumpers.push_back(lowerIndex);
+		bumperCapsuloid3.neibBumpers.push_back(upperIndex);
+		bumperCapsuloid3.neibBumpers.push_back(lowerIndex);
+
+		cone0 = bumperCapsuloid3.cones[0];
+		cone1 = bumperCapsuloid3.cones[1];
+		cone0.capsuloidIndex = idx;
+		cone1.capsuloidIndex = idx;
+		std::get<BumperSphere>(bumper[bumperCapsuloid3.sphereIndex[0]].bumper).cones.push_back(cone0);
+		std::get<BumperSphere>(bumper[bumperCapsuloid3.sphereIndex[1]].bumper).cones.push_back(cone1);
 
 		std::get<BumperQuad>(bumper[upperIndex].bumper).neibSide[3] = idx;
 		std::get<BumperQuad>(bumper[lowerIndex].bumper).neibSide[3] = idx;
@@ -764,7 +862,7 @@ void BumperGraph::constructFrom (const SphereMesh &sm)
 	sphere = sm.spheres;
 
 	initializeBumperNodes(sm);
-	floodfill();
+	constructRig(5, 3, 6);
 }
 
 bool BumperGraph::pushOutsideSphere(glm::vec3& p, glm::vec3& n, const int& bumperIndex) const
@@ -1053,145 +1151,78 @@ std::pair<int, float> BumperGraph::sampleSignedDistanceFromQuad(int bumperIndex,
 	return {bumperIndex, bq.upperPlane.distance(p)};
 }
 
-std::vector<std::vector<bool>> BumperGraph::getBumperAdjMatrix() const
+BumperGraph::Transform::Transform(const glm::vec3 &eulerAnglesDeg, const glm::vec3 &origin)
 {
-	std::vector sphereAdj (sphere.size(), std::vector(sphere.size(), false));
+	rot = glm::mat3(rotate(glm::mat4(1.0f), glm::radians(eulerAnglesDeg.x), glm::vec3(1, 0, 0)))
+		* glm::mat3(rotate(glm::mat4(1.0f), glm::radians(eulerAnglesDeg.y), glm::vec3(0, 1, 0)))
+		* glm::mat3(rotate(glm::mat4(1.0f), glm::radians(eulerAnglesDeg.z), glm::vec3(0, 0, 1)));
 
-	for (auto& b : bumper)
-	{
-		if (b.shapeType == Bumper::SPHERE) continue;
-
-		if (b.shapeType == Bumper::CAPSULOID)
-		{
-			auto& bc = std::get<BumperCapsuloid>(b.bumper);
-			sphereAdj[bc.sphereIndex[0]][bc.sphereIndex[1]] = true;
-			sphereAdj[bc.sphereIndex[1]][bc.sphereIndex[0]] = true;
-		}
-
-		if (b.shapeType == Bumper::PRYSMOID)
-		{
-			auto& bp = std::get<BumperPrysmoid>(b.bumper);
-
-			sphereAdj[bp.sphereIndex[0]][bp.sphereIndex[1]] = true;
-			sphereAdj[bp.sphereIndex[1]][bp.sphereIndex[0]] = true;
-
-			sphereAdj[bp.sphereIndex[0]][bp.sphereIndex[2]] = true;
-			sphereAdj[bp.sphereIndex[2]][bp.sphereIndex[0]] = true;
-
-			sphereAdj[bp.sphereIndex[1]][bp.sphereIndex[2]] = true;
-			sphereAdj[bp.sphereIndex[2]][bp.sphereIndex[1]] = true;
-		}
-
-		if (b.shapeType == Bumper::QUAD)
-		{
-			auto& bq = std::get<BumperQuad>(b.bumper);
-
-			sphereAdj[bq.sphereIndex[0]][bq.sphereIndex[1]] = true;
-			sphereAdj[bq.sphereIndex[1]][bq.sphereIndex[0]] = true;
-
-			sphereAdj[bq.sphereIndex[0]][bq.sphereIndex[3]] = true;
-			sphereAdj[bq.sphereIndex[3]][bq.sphereIndex[0]] = true;
-
-			sphereAdj[bq.sphereIndex[1]][bq.sphereIndex[2]] = true;
-			sphereAdj[bq.sphereIndex[2]][bq.sphereIndex[1]] = true;
-
-			sphereAdj[bq.sphereIndex[2]][bq.sphereIndex[3]] = true;
-			sphereAdj[bq.sphereIndex[3]][bq.sphereIndex[2]] = true;
-		}
-	}
-
-	return sphereAdj;
+	trasl = origin - rot * origin;
 }
 
-void BumperGraph::fillBranchWithTransform(const int value, const std::vector<std::vector<bool>> &adjMatrix,
-	std::queue<int>& q, std::unordered_set<int>& visited)
+inline int max(const int a, const int b, const int c = -1, const int d = -1)
 {
-	q.push(value);
-	visited.insert(value);
+	return std::max(std::max(a, b), std::max(c, d));
+}
 
-	while (!q.empty())
-	{
-		const int top = q.front();
-		q.pop();
+void BumperGraph::constructRig(const int shoulderLeft, const int shoulderRight, const int hip)
+{
+	boneIndex.resize(bumper.size());
+	std::vector boneIndexOfSphere (sphere.size(), -1);
 
-		rig[top] = value;
+	for (int _ = 0; _ < bumper.size(); _++)
+		for (int i = 0; i < bumper.size(); i++)
+		{
+			auto& b = bumper[i];
 
-		for (int i = 0; i < sphere.size(); i++)
-            if (i != top && adjMatrix[top][i] && !visited.contains(i))
+			if (b.shapeType == Bumper::SPHERE)
 			{
-				visited.insert(i);
-				q.push(i);
+				const auto& bs = std::get<BumperSphere>(b.bumper);
+				const int index0 = boneIndexOfSphere[bs.sphereIndex];
+
+				boneIndex[i] = index0;
 			}
-	}
-}
+			if (b.shapeType == Bumper::CAPSULOID)
+			{
+				const auto& bc = std::get<BumperCapsuloid>(b.bumper);
+				int& index0 = boneIndexOfSphere[bc.sphereIndex[0]];
+				int& index1 = boneIndexOfSphere[bc.sphereIndex[1]];
+				const int maxV = max(index0, index1);
 
-void BumperGraph::floodfill()
-{
-    transformMapper[safeLeft] = {{0.0f, 0.0f, 1.0f}, glm::radians(-0.5f), sphere[safeLeft].center};
-    transformMapper[safeRight] = {{0.0f, 0.0f, 1.0f}, glm::radians(0.5f), sphere[safeRight].center};
-	transformMapper[cancer] = {{0.0f, 0.0f, 1.0f}, 0.0f, sphere[cancer].center};
+				index0 = index1 = maxV;
 
-	// Sphere floodfill
-	const auto adjMatrix = getBumperAdjMatrix();
+				boneIndex[i] = maxV;
+			}
+			if (b.shapeType == Bumper::PRYSMOID)
+			{
+				const auto& bp = std::get<BumperPrysmoid>(b.bumper);
+				int& index0 = boneIndexOfSphere[bp.sphereIndex[0]];
+				int& index1 = boneIndexOfSphere[bp.sphereIndex[1]];
+				int& index2 = boneIndexOfSphere[bp.sphereIndex[2]];
+				const int maxV = max(index0, index1, index2);
 
-	std::queue<int> q;
-	std::unordered_set<int> visited;
+				index0 = index1 = index2 = maxV;
 
-    q.push(cancer);
-    visited.insert(cancer);
+				boneIndex[i] = maxV;
+			}
+			if (b.shapeType == Bumper::QUAD)
+			{
+				const auto& bq = std::get<BumperPrysmoid>(b.bumper);
+				int& index0 = boneIndexOfSphere[bq.sphereIndex[0]];
+				int& index1 = boneIndexOfSphere[bq.sphereIndex[1]];
+				int& index2 = boneIndexOfSphere[bq.sphereIndex[2]];
+				int& index3 = boneIndexOfSphere[bq.sphereIndex[3]];
+				const int maxV = max(index0, index1, index2, index3);
 
-    while (!q.empty())
-    {
-        const int top = q.front();
-        q.pop();
+				index0 = index1 = index2 = index3 = maxV;
 
-        rig[top] = cancer;
+				boneIndex[i] = maxV;
+			}
 
-        for (int i = 0; i < sphere.size(); i++)
-            if (i != top && adjMatrix[top][i] && !visited.contains(i) && i != safeLeft && i != safeRight)
-            {
-                visited.insert(i);
-                q.push(i);
-            }
-    }
-
-	fillBranchWithTransform(safeLeft, adjMatrix, q, visited);
-	fillBranchWithTransform(safeRight, adjMatrix, q, visited);
-
-	// Bumpers floodfill
-	for (int i = 0; i < bumper.size(); i++)
-	{
-		auto& b = bumper[i];
-
-		if (b.shapeType == Bumper::SPHERE) continue;
-		if (b.shapeType == Bumper::CAPSULOID)
-		{
-			const auto& bc = std::get<BumperCapsuloid>(b.bumper);
-			const int index0 = rig[bc.sphereIndex[0]];
-			const int index1 = rig[bc.sphereIndex[1]];
-
-			if (index0 == index1 && index0 != cancer) rig[i] = index0;
+			boneIndexOfSphere[shoulderLeft] = 0;
+			boneIndexOfSphere[shoulderRight] = 1;
+			boneIndexOfSphere[hip] = 2;
 		}
-		if (b.shapeType == Bumper::PRYSMOID)
-		{
-			const auto& bp = std::get<BumperPrysmoid>(b.bumper);
-			const int index0 = rig[bp.sphereIndex[0]];
-			const int index1 = rig[bp.sphereIndex[1]];
-			const int index2 = rig[bp.sphereIndex[2]];
-
-			if (index0 == index1 == index2 && index0 != cancer) rig[i] = index0;
-		}
-		if (b.shapeType == Bumper::QUAD)
-		{
-			const auto& bq = std::get<BumperPrysmoid>(b.bumper);
-			const int index0 = rig[bq.sphereIndex[0]];
-			const int index1 = rig[bq.sphereIndex[1]];
-			const int index2 = rig[bq.sphereIndex[2]];
-			const int index3 = rig[bq.sphereIndex[3]];
-
-			if (index0 == index1 == index2 == index3 && index0 != cancer) rig[i] = index0;
-		}
-	}
 }
 
 float BumperGraph::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const
@@ -1249,17 +1280,16 @@ float BumperGraph::projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIn
 	}
 }
 
-bool BumperGraph::pushOutsideBruteForce(glm::vec3& p, glm::vec3& n, const int& bumperIndex) const
+bool BumperGraph::pushOutsideBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex) const
 {
 	glm::vec3 tmpPos = p;
 	glm::vec3 tmpNorm = n;
-	int tmpBumperIndex = bumperIndex;
-	projectOnBruteForce(tmpPos, tmpNorm, tmpBumperIndex);
+	projectOnBruteForce(tmpPos, tmpNorm, bumperIndex);
 
-	if (bumper[tmpBumperIndex].shapeType == Bumper::SPHERE)	return pushOutsideSphere(p, n, tmpBumperIndex);
-	if (bumper[tmpBumperIndex].shapeType == Bumper::CAPSULOID) return pushOutsideCapsuloid(p, n, tmpBumperIndex);
-	if (bumper[tmpBumperIndex].shapeType == Bumper::PRYSMOID)	return pushOutsidePrysmoid(p, n, tmpBumperIndex);
-	if (bumper[tmpBumperIndex].shapeType == Bumper::QUAD)		return pushOutsideQuad(p, n, tmpBumperIndex);
+	if (bumper[bumperIndex].shapeType == Bumper::SPHERE)	return pushOutsideSphere(p, n, bumperIndex);
+	if (bumper[bumperIndex].shapeType == Bumper::CAPSULOID) return pushOutsideCapsuloid(p, n, bumperIndex);
+	if (bumper[bumperIndex].shapeType == Bumper::PRYSMOID)	return pushOutsidePrysmoid(p, n, bumperIndex);
+	if (bumper[bumperIndex].shapeType == Bumper::QUAD)		return pushOutsideQuad(p, n, bumperIndex);
 
 	return false;
 }
@@ -1275,74 +1305,33 @@ bool BumperGraph::projectOn (glm::vec3 &p, glm::vec3 &n, int &bumperIndex) const
 	return true;
 }
 
-void BumperGraph::animateRig(int iterations)
+void BumperGraph::applyPose()
 {
-	for (int it = 0; it < iterations; ++it)
+	for (int i = 0; i < bumper.size(); i++)
 	{
-		for (int i = 0; i < bumper.size(); i++)
+		const Transform& t = boneTransform[boneIndex[i]];
+		if (bumper[i].shapeType == Bumper::SPHERE)
 		{
-			auto& b = bumper[i];
-
-			if (b.shapeType == Bumper::SPHERE && rig[i] != cancer)
-			{
-				auto [axis, angle, pivot] = transformMapper[rig[i]];
-
-				glm::vec3 translatedPos = sphere[i].center - pivot;
-				glm::mat3 rotationMatrix = glm::mat3(glm::rotate(glm::mat4(1.0f), angle, axis));
-				glm::vec3 rotatedPos = rotationMatrix * translatedPos;
-
-				sphere[i].center = rotatedPos + pivot;
-
-				auto& bn = std::get<BumperSphere>(b.bumper);
-
-				bn.translate(-pivot);
-				bn.rotate(rotationMatrix);
-				bn.translate(pivot);
-			}
-			if (b.shapeType == Bumper::CAPSULOID && rig[i] != cancer)
-			{
-				auto [axis, angle, pivot] = transformMapper[rig[i]];
-
-				glm::vec3 translatedPos = sphere[i].center - pivot;
-				glm::mat3 rotationMatrix = glm::mat3(glm::rotate(glm::mat4(1.0f), angle, axis));
-				glm::vec3 rotatedPos = rotationMatrix * translatedPos;
-
-				auto& bc = std::get<BumperCapsuloid>(b.bumper);
-
-				bc.translate(-pivot);
-				bc.rotate(rotationMatrix);
-				bc.translate(pivot);
-			}
-			if (b.shapeType == Bumper::PRYSMOID && rig[i] != cancer)
-			{
-				auto [axis, angle, pivot] = transformMapper[rig[i]];
-
-				glm::vec3 translatedPos = sphere[i].center - pivot;
-				glm::mat3 rotationMatrix = glm::mat3(glm::rotate(glm::mat4(1.0f), angle, axis));
-				glm::vec3 rotatedPos = rotationMatrix * translatedPos;
-
-				auto& bp = std::get<BumperPrysmoid>(b.bumper);
-
-				bp.translate(-pivot);
-				bp.rotate(rotationMatrix);
-				bp.translate(pivot);
-			}
-			if (b.shapeType == Bumper::QUAD && rig[i] != cancer)
-			{
-				auto [axis, angle, pivot] = transformMapper[rig[i]];
-
-				glm::vec3 translatedPos = sphere[i].center - pivot;
-				glm::mat3 rotationMatrix = glm::mat3(glm::rotate(glm::mat4(1.0f), angle, axis));
-				glm::vec3 rotatedPos = rotationMatrix * translatedPos;
-
-				auto& bq = std::get<BumperQuad>(b.bumper);
-
-				bq.translate(-pivot);
-				bq.rotate(rotationMatrix);
-				bq.translate(pivot);
-			}
+			sphere[i].rotate(t.rot);
+			sphere[i].translate(t.trasl);
+		}
+		else
+		{
+			bumper[i].rotate(t.rot);
+			bumper[i].translate(t.trasl);
 		}
 	}
+}
+
+void BumperGraph::setPose(const float alpha, const float beta)
+{
+	constexpr int shoulderLeft = 5;
+	constexpr int shoulderRight = 3;
+
+	boneTransform.resize(3);
+	boneTransform[0] = Transform({beta, +alpha, 0}, sphere[shoulderLeft].center);
+	boneTransform[1] = Transform({beta, -alpha, 0}, sphere[shoulderRight].center);
+	boneTransform[2] = Transform();
 }
 
 bool BumperGraph::isPointOverPrysmoid (const int bumperIndex, const glm::vec3 &p) const
@@ -1376,7 +1365,7 @@ void BumperQuad::translate(const glm::vec3 &t)
 		sideP.translate(t);
 }
 
-void BumperQuad::scale(float r)
+void BumperQuad::scale(const float r)
 {
 	upperPlane.scale(r);
 	midPlane.scale(r);
@@ -1483,7 +1472,7 @@ void Bumper::translate(const glm::vec3 &t)
 	if (shapeType == QUAD) std::get<BumperQuad>(bumper).translate(t);
 }
 
-void Bumper::scale(float r)
+void Bumper::scale(const float r)
 {
 	if (shapeType == SPHERE) std::get<BumperSphere>(bumper).scale(r);
 	if (shapeType == CAPSULOID) std::get<BumperCapsuloid>(bumper).scale(r);
@@ -1541,6 +1530,11 @@ void BumperGraph::sortByType()
 
 	for (auto & bn : bumper)
 	{
+		if (bn.shapeType == Bumper::SPHERE)
+		{
+			for (auto& bs = std::get<BumperSphere>(bn.bumper); auto& c : bs.cones)
+				c.capsuloidIndex = inversePermutation[c.capsuloidIndex];
+		}
 		if (bn.shapeType == Bumper::CAPSULOID)
 		{
 			auto& bc = std::get<BumperCapsuloid>(bn.bumper);
@@ -1773,9 +1767,7 @@ SubMesh BumperGraphMesh::createSubMeshFromBumper(const Bumper &b, const std::vec
     std::visit([&]<typename T0>(T0 &&arg) {
         using T = std::decay_t<T0>;
         if constexpr (std::is_same_v<T, BumperSphere>) {
-	        const int idx = arg.sphereIndex;
-
-            if (idx >= 0 && idx < static_cast<int>(spheres.size())) {
+	        if (const int idx = arg.sphereIndex; idx >= 0 && idx < static_cast<int>(spheres.size())) {
                 sub = createSphereSubMesh(spheres[idx], 128);
                 sub.name = "sphere_" + std::to_string(idx);
             }
@@ -1941,12 +1933,12 @@ BumperGraphMesh::BumperGraphMesh(const BumperGraph &bg) {
             	if constexpr (std::is_same_v<T, BumperPrysmoid>) {
 		            const SubMesh sub = createPrysmoidSubMesh(arg, bg.sphere);
             		submeshes.push_back(sub);
-            		float topOffset = 2.0f;
-					float sideElongation = 3.0f;
 
-					for (int side = 0; side < 3; ++side) {
+		            for (int side = 0; side < 3; ++side) {
+			            float sideElongation = 3.0f;
+			            float topOffset = 2.0f;
 						SubMesh extraSide = createExtraLateralCutPlaneForPrysmoidSideWithElongation(arg,
-							bg.sphere, side, topOffset, sideElongation);
+						                                                                            bg.sphere, side, topOffset, sideElongation);
 						extraSide.name = "prysmoid_extra_side_" + std::to_string(side);
 						submeshes.push_back(extraSide);
 					}
@@ -1971,15 +1963,14 @@ void BumperGraphMesh::exportObj(const std::string &filename) const {
 
     if (totalVertices > 0) globalCentroid /= static_cast<float>(totalVertices);
 
-    float explosionFactor = 0.0f;
-
     std::ofstream out(filename);
     if (!out)
         throw std::runtime_error("Failed to open file: " + filename);
 
     int globalVertexOffset = 0;
     for (const auto &[name, vertices, faces] : submeshes) {
-        glm::vec3 subCentroid(0.0f);
+	    float explosionFactor = 0.0f;
+	    glm::vec3 subCentroid(0.0f);
         for (const auto &v : vertices)
             subCentroid += v;
         if (!vertices.empty())
@@ -2026,14 +2017,13 @@ void BumperGraphMesh::exportPly(const std::string &filename) const {
 
     if (totalVertices > 0) globalCentroid /= static_cast<float>(totalVertices);
 
-    float explosionFactor = 0.0f;
-
     std::vector<VertexColor> combinedVertices;
     std::vector<std::array<int, 3>> combinedFaces;
     int vertexOffset = 0;
 
     for (const auto &[name, vertices, faces] : submeshes) {
-        glm::vec3 color(1.0f); // white
+	    float explosionFactor = 0.0f;
+	    glm::vec3 color(1.0f); // white
         if (name.find("sphere") != std::string::npos)
             color = glm::vec3(1, 0, 0); // red
         else if (name.find("capsuloid") != std::string::npos)

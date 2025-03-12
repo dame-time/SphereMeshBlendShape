@@ -64,6 +64,7 @@ namespace SM {
 		Sphere(const glm::vec3& center, const float radius) : center(center), radius(radius) {}
 
 		void rotateAroundAxis(float angle, const glm::vec3& axis);
+		void rotate(const glm::mat3& r);
 		void translate(const glm::vec3& t);
 		void scale(float s);
 	};
@@ -195,6 +196,8 @@ namespace SM {
 		void translate (const glm::vec3& t);
 		void scale (float s);
 		void rotateY (int angle);
+
+		void inflate (float t);
 
         void printf() const;
 

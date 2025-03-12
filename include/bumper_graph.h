@@ -12,28 +12,16 @@ namespace SM::Graph
 
 		glm::vec3 apex {};
 		glm::vec3 axis {};
-		float halfAngle {};
+		float cosHalfAngle {};
 
 		Cone() = default;
 		Cone(const glm::vec3& apex, const glm::vec3& axis, const float halfAngle)
-			: apex(apex), axis(normalize(axis)), halfAngle(halfAngle)
+			: apex(apex), axis(normalize(axis)), cosHalfAngle(std::cos(halfAngle))
 		{}
 
 		[[nodiscard]] bool contains(const glm::vec3& point) const {
-			const glm::vec3 v = point - apex;
-
-			const float dotWithAxis = dot(v, axis);
-
-			if (dotWithAxis < 0.0f)
-				return false;
-
-			const float dist = length(v);
-			if (dist < 1e-6f)
-				return true;
-
-			const float cosTheta = dotWithAxis / dist;
-
-			return cosTheta >= std::cos(halfAngle);
+			const glm::vec3 v = normalize((point - apex));
+			return dot(v, axis) >= cosHalfAngle;
 		}
 
 		void translate(const glm::vec3& t) {
@@ -45,7 +33,7 @@ namespace SM::Graph
 			axis = normalize(rot * axis);
 		}
 
-		void scale(float s) {
+		void scale(const float s) {
 			apex *= s;
 		}
 	};
@@ -187,7 +175,7 @@ namespace SM::Graph
 		std::vector<Bumper> bumper;
 		std::vector<Sphere> sphere;
 
-        std::unordered_map<int, int> rig;
+        std::vector<int> boneIndex;
 
 		void constructFrom (const SphereMesh& sm);
 
@@ -195,29 +183,33 @@ namespace SM::Graph
 		void scale (float s);
 		void rotateY (int angle);
 
+		[[nodiscard]] glm::vec3 getBumperCentroid(int idx) const;
+
 		bool pushOutside(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
-		bool pushOutsideBruteForce(glm::vec3& p, glm::vec3& n, const int& bumperIndex)  const;
+		bool pushOutsideBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 		bool projectOn(glm::vec3& p, glm::vec3& n, int& bumperIndex) const;
 
-		void animateRig(int iterations);
+		void applyPose();
+
+		void setPose(float alpha, float beta);
 
 	private:
 		static float PUSH_EPSILON;
 
 		struct Transform
 		{
-			glm::vec3 axis;
-			float angle;
-			glm::vec3 root;
+			glm::mat3 rot = glm::mat3(1);
+			glm::vec3 trasl = glm::vec3(0);
+
+			Transform() {}
+			Transform(const glm::vec3& eulerAnglesDeg, const glm::vec3& origin);
+
+			glm::vec3 apply(const glm::vec3& v) const { return rot * v + trasl; }
 		};
 
-        int safeLeft = 5, safeRight = 3, cancer = 4;
-		std::unordered_map<int, Transform> transformMapper;
+		std::vector<Transform> boneTransform;
 
-		[[nodiscard]] std::vector<std::vector<bool>> getBumperAdjMatrix() const;
-		void fillBranchWithTransform(int value, const std::vector<std::vector<bool>> &adjMatrix, std::queue<int>& q,
-		                             std::unordered_set<int>& visited);
-		void floodfill();
+		void constructRig(int shoulderLeft, int shoulderRight, int hip);
 
 		float projectOnBruteForce(glm::vec3& p, glm::vec3& n, int& bumperIndex)  const;
 
